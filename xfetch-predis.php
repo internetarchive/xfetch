@@ -11,6 +11,7 @@ Predis\Autoloader::register();
  */
 define('TTL', 10);
 define('DELTA', 5);
+define('LOCK_TTL', 10);
 
 /**
  * Child process exit codes (indicating cache result).
@@ -24,6 +25,7 @@ define('UNKNOWN', 127);
  * Test parameters.
  */
 define('REDIS_KEY', 'test:cache');
+define('LOCK_KEY', 'test:lock');
 define('WORKERS', 50);
 define('REPORT_EVERY_SEC', 5);
 
@@ -44,6 +46,7 @@ function main($argv)
   // clear the cached value from Redis
   $redis = new Predis\Client();
   $redis->del(REDIS_KEY);
+  $redis->del(LOCK_KEY);
 
   $workers = [];
 
@@ -56,7 +59,7 @@ function main($argv)
     // keep max. workers running
     $added = 0;
     while (!$halt && count($workers) < WORKERS) {
-      $worker = new FetchWorker();
+      $worker = new LockWorker();
       $pid = $worker->start();
 
       $workers[$pid] = $worker;
@@ -127,8 +130,11 @@ abstract class ChildWorker
 {
   public $pid = -1;
 
+  private $redis;
+
   public function __construct()
   {
+    $this->redis = new Predis\Client();
   }
 
   public function start()
@@ -139,7 +145,7 @@ abstract class ChildWorker
     else if ($pid)
       return $this->pid = $pid;
     else
-      exit($this->run(new Predis\Client()));
+      exit($this->run($this->redis));
   }
 
   /**
@@ -168,5 +174,43 @@ class FetchWorker extends ChildWorker
     }
 
     return $result;
+  }
+}
+
+/**
+ *
+ */
+
+class LockWorker extends ChildWorker
+{
+  protected function run($redis)
+  {
+    $result = HIT;
+
+    $value = $redis->get(REDIS_KEY);
+    while (!$value) {
+      $result = MISS;
+
+      if ($this->acquire_lock($redis)) {
+        $value = recompute_fn();
+        $redis->set(REDIS_KEY, $value, 'EX', TTL);
+        $this->release_lock($redis);
+      } else {
+        usleep(100 * 1000);
+        $value = $redis->get(REDIS_KEY);
+      }
+    }
+
+    return $result;
+  }
+
+  private function acquire_lock($redis)
+  {
+    return $redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_TTL, 'NX');
+  }
+
+  private function release_lock($redis)
+  {
+    $redis->del(LOCK_KEY);
   }
 }

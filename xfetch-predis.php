@@ -10,8 +10,7 @@ Predis\Autoloader::register();
  * Times in seconds.
  */
 define('TTL', 10);
-define('DELTA', 3);
-define('REPORT_EVERY_SEC', 5);
+define('DELTA', 5);
 
 /**
  * Child process exit codes (indicating cache result).
@@ -21,6 +20,14 @@ define('MISS', 1);
 define('EARLY', 2);
 define('UNKNOWN', 127);
 
+/**
+ * Test parameters.
+ */
+define('REDIS_KEY', 'test:cache');
+define('WORKERS', 50);
+define('REPORT_EVERY_SEC', 5);
+
+// run it!
 exit(main($argv));
 
 /**
@@ -28,30 +35,39 @@ exit(main($argv));
  */
 function main($argv)
 {
-  // install signal handler to exit on SIGINT
+  // install signal handler to exit on Ctrl+C
   $halt = false;
   pcntl_signal(SIGINT, function () use (&$halt) {
     $halt = true;
   });
+
+  // clear the cached value from Redis
+  $redis = new Predis\Client();
+  $redis->del(REDIS_KEY);
 
   $workers = [];
 
   $total = 0;
   $tally = [ 'hits' => 0, 'misses' => 0, 'earlies' => 0, 'error' => 0 ];
 
-  $dummy = new FetchWorker();
-  $dummy->clear();
-
   $report_time_t = time() + REPORT_EVERY_SEC;
 
-  for (;;) {
-    while (!$halt && count($workers) < 50) {
+  do {
+    // keep max. workers running
+    $added = 0;
+    while (!$halt && count($workers) < WORKERS) {
       $worker = new FetchWorker();
       $pid = $worker->start();
 
       $workers[$pid] = $worker;
+      $added++;
     }
 
+    // if added in bulk, give child processes a chance to start
+    if ($added > 1)
+      sleep(1);
+
+    // wait for a child process to exit
     $pid = pcntl_wait($status);
     if ($pid === -1)
       exit("Could not wait for child process\n");
@@ -79,7 +95,8 @@ function main($argv)
       break;
     }
 
-    if (!$halt && ($total > 50) && ($report_time_t <= time())) {
+    // report stats every 'n' seconds, but only report when a full round of workers have completed
+    if (!$halt && ($total >= WORKERS) && ($report_time_t <= time())) {
       echo "$total samples:\n";
       var_dump($tally);
       echo "\n";
@@ -87,11 +104,8 @@ function main($argv)
       $report_time_t = time() + REPORT_EVERY_SEC;
     }
 
-    if ($halt && !count($workers))
-      break;
-
     pcntl_signal_dispatch();
-  }
+  } while (!$halt || count($workers));
 
   echo "$total samples:\n";
   var_dump($tally);
@@ -111,12 +125,10 @@ function recompute_fn()
 
 abstract class ChildWorker
 {
-  public $redis;
   public $pid = -1;
 
   public function __construct()
   {
-    $this->redis = new Predis\Client();
   }
 
   public function start()
@@ -127,22 +139,14 @@ abstract class ChildWorker
     else if ($pid)
       return $this->pid = $pid;
     else
-      exit($this->run());
-  }
-
-  public function join()
-  {
-    pcntl_waitpid($this->pid, $status);
-
-    return pcntl_wifexited($status) ? pcntl_wexitstatus($status) : UNKNOWN;
+      exit($this->run(new Predis\Client()));
   }
 
   /**
+   * @param Predis\Client $redis
    * @return int
    */
-  abstract protected function run();
-
-  abstract public function clear();
+  abstract protected function run($redis);
 }
 
 /**
@@ -151,25 +155,18 @@ abstract class ChildWorker
 
 class FetchWorker extends ChildWorker
 {
-  const REDIS_KEY = 'test:cache:fetch';
-
-  protected function run()
+  protected function run($redis)
   {
     $result = HIT;
 
-    $value = $this->redis->get(self::REDIS_KEY);
+    $value = $redis->get(REDIS_KEY);
     if (!$value) {
       $value = recompute_fn();
-      $this->redis->set(self::REDIS_KEY, $value, 'EX', TTL);
+      $redis->set(REDIS_KEY, $value, 'EX', TTL);
 
       $result = MISS;
     }
 
     return $result;
-  }
-
-  public function clear()
-  {
-    $this->redis->del(self::REDIS_KEY);
   }
 }

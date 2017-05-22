@@ -16,10 +16,18 @@ define('LOCK_TTL', 10);
 /**
  * Child process exit codes (indicating cache result).
  */
-define('HIT', 0);
-define('MISS', 1);
-define('EARLY', 2);
+define('HIT',     0);
+define('MISS',    1);
+define('EARLY',   2);
+define('RETRY',   3);
 define('UNKNOWN', 127);
+
+$EXITCODE_TO_LABEL = [
+  HIT     => 'hits',
+  MISS    => 'misses',
+  EARLY   => 'earlies',
+  RETRY   => 'retries',
+];
 
 /**
  * Redis keys.
@@ -43,9 +51,12 @@ exit(main($argv));
  */
 function main($argv)
 {
+  global $EXITCODE_TO_LABEL;
+
   // install signal handler to exit on Ctrl+C
   $halt = false;
   pcntl_signal(SIGINT, function () use (&$halt) {
+    echo "Halting...\n";
     $halt = true;
   });
 
@@ -57,7 +68,7 @@ function main($argv)
   $first_pass = true;
 
   $total = 0;
-  $tally = [ 'hits' => 0, 'misses' => 0, 'earlies' => 0, 'error' => 0 ];
+  $tally = [];
 
   $report_time_t = time() + REPORT_EVERY_SEC;
 
@@ -65,7 +76,7 @@ function main($argv)
     // keep max. workers running
     $added = 0;
     while (!$halt && count($workers) < WORKERS) {
-      $worker = new XFetchWorker();
+      $worker = new FetchWorker();
       $worker->first_pass = $first_pass;
 
       $pid = $worker->start();
@@ -76,10 +87,6 @@ function main($argv)
 
     // reset to indicate new workers are post-first-pass (which plays into stats gathering)
     $first_pass = false;
-
-    // if child processes were added in bulk, give them chance to start
-    //if ($added > 1)
-      usleep(1 * 1000);
 
     // wait for a child process to exit
     $pid = pcntl_wait($status);
@@ -95,31 +102,13 @@ function main($argv)
     // cache is warm
     if (!$worker->first_pass) {
       $total++;
-      switch ($exitcode) {
-        case HIT:
-          $tally['hits']++;
-        break;
-
-        case MISS:
-          $tally['misses']++;
-        break;
-
-        case EARLY:
-          $tally['earlies']++;
-        break;
-
-        case UNKNOWN:
-        default:
-          $tally['error']++;
-        break;
-      }
+      $label = isset($EXITCODE_TO_LABEL[$exitcode]) ? $EXITCODE_TO_LABEL[$exitcode] : "$exitcode";
+      isset($tally[$label]) ? $tally[$label]++ : ($tally[$label] = 1);
     }
 
     // report stats every 'n' seconds, but only report when a full round of workers have completed
     if (!$halt && ($total >= WORKERS) && ($report_time_t <= time())) {
-      echo "$total samples:\n";
-      var_dump($tally);
-      echo "\n";
+      report_stats($total, $tally);
 
       // calc next report time
       $report_time_t = time() + REPORT_EVERY_SEC;
@@ -131,8 +120,7 @@ function main($argv)
   } while (!$halt || count($workers));
 
   // final report
-  echo "$total samples:\n";
-  var_dump($tally);
+  report_stats($total, $tally);
 
   return 0;
 }
@@ -144,6 +132,16 @@ function recompute_fn()
 {
   sleep(DELTA);
   return 'gnusto';
+}
+
+function report_stats($total, $tally)
+{
+  ksort($tally);
+
+  echo "$total samples:\n";
+  foreach ($tally as $label => $count)
+    echo "  $label\t$count\n";
+  echo "\n";
 }
 
 /**
@@ -164,12 +162,25 @@ abstract class ChildWorker
   public function start()
   {
     $pid = pcntl_fork();
-    if ($pid === -1)
+    if ($pid === -1) {
       exit("Could not fork\n");
-    else if ($pid)
+    } else if ($pid) {
+      // still in parent process
       return $this->pid = $pid;
-    else
+    }
+
+    // in child process
+
+    // replace parent signal handler w/ nop
+    pcntl_signal(SIGINT, function () {
+    });
+
+    // go
+    try {
       exit($this->run($this->redis));
+    } catch (Exception $e) {
+      exit(-1);
+    }
   }
 
   /**
@@ -210,19 +221,24 @@ class LockWorker extends ChildWorker
   protected function run($redis)
   {
     $result = HIT;
+    for (;;) {
+      $value = $redis->get(REDIS_KEY);
+      if ($value)
+        break;
 
-    $value = $redis->get(REDIS_KEY);
-    while (!$value) {
-      $result = MISS;
+      if ($result == HIT)
+        $result = MISS;
 
       if ($this->acquire_lock($redis)) {
         $value = recompute_fn();
         $redis->set(REDIS_KEY, $value, 'EX', TTL);
         $this->release_lock($redis);
-      } else {
-        usleep(100 * 1000);
-        $value = $redis->get(REDIS_KEY);
+
+        break;
       }
+
+      $result = RETRY;
+      usleep(100 * 1000);
     }
 
     return $result;

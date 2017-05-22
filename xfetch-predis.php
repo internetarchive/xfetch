@@ -9,8 +9,9 @@ Predis\Autoloader::register();
 /**
  * Times in seconds.
  */
-define('TTL', 20);
-define('DELTA', 2);
+define('TTL', 12);
+define('INITIAL_TTL', 3);
+define('DELTA', 1);
 define('LOCK_TTL', 10);
 
 /**
@@ -20,6 +21,7 @@ define('HIT',     0);
 define('MISS',    1);
 define('EARLY',   2);
 define('RETRY',   3);
+define('SIMUL',   4);
 define('UNKNOWN', 127);
 
 $EXITCODE_TO_LABEL = [
@@ -27,14 +29,16 @@ $EXITCODE_TO_LABEL = [
   MISS    => 'misses',
   EARLY   => 'earlies',
   RETRY   => 'retries',
+  SIMUL   => 'simul recomputes',
 ];
 
 /**
  * Redis keys.
  */
 define('REDIS_KEY', 'test:cache');
-define('LOCK_KEY', 'test:lock');
+define('LOCK_KEY',  'test:lock');
 define('DELTA_KEY', 'test:delta');
+define('COUNT_KEY', 'test:counter');
 
 /**
  * Test parameters.
@@ -62,7 +66,7 @@ function main($argv)
 
   // clear the cached value from Redis
   $redis = new Predis\Client();
-  $redis->del(REDIS_KEY, LOCK_KEY, DELTA_KEY);
+  $redis->del(REDIS_KEY, LOCK_KEY, DELTA_KEY, COUNT_KEY);
 
   $workers = [];
   $first_pass = true;
@@ -76,7 +80,7 @@ function main($argv)
     // keep max. workers running
     $added = 0;
     while (!$halt && count($workers) < WORKERS) {
-      $worker = new FetchWorker();
+      $worker = new LockWorker($first_pass ? INITIAL_TTL : TTL);
       $worker->first_pass = $first_pass;
 
       $pid = $worker->start();
@@ -153,10 +157,12 @@ abstract class ChildWorker
   public $pid = -1;
 
   private $redis;
+  private $expires;
 
-  public function __construct()
+  public function __construct($expires)
   {
     $this->redis = new Predis\Client();
+    $this->expires = $expires;
   }
 
   public function start()
@@ -177,7 +183,7 @@ abstract class ChildWorker
 
     // go
     try {
-      exit($this->run($this->redis));
+      exit($this->run($this->redis, $this->expires));
     } catch (Exception $e) {
       exit(-1);
     }
@@ -185,9 +191,10 @@ abstract class ChildWorker
 
   /**
    * @param Predis\Client $redis
+   * @param int $expires
    * @return int
    */
-  abstract protected function run($redis);
+  abstract protected function run($redis, $expires);
 }
 
 /**
@@ -196,16 +203,20 @@ abstract class ChildWorker
 
 class FetchWorker extends ChildWorker
 {
-  protected function run($redis)
+  protected function run($redis, $expires)
   {
     $result = HIT;
 
     $value = $redis->get(REDIS_KEY);
     if (!$value) {
-      $value = recompute_fn();
-      $redis->set(REDIS_KEY, $value, 'EX', TTL);
+      $simul = $redis->incr(COUNT_KEY);
 
-      $result = MISS;
+      $value = recompute_fn();
+      $redis->set(REDIS_KEY, $value, 'EX', $expires);
+
+      $redis->decr(COUNT_KEY);
+
+      $result = ($simul > 1) ? SIMUL : MISS;
     }
 
     return $result;
@@ -218,7 +229,7 @@ class FetchWorker extends ChildWorker
 
 class LockWorker extends ChildWorker
 {
-  protected function run($redis)
+  protected function run($redis, $expires)
   {
     $result = HIT;
     for (;;) {
@@ -231,7 +242,7 @@ class LockWorker extends ChildWorker
 
       if ($this->acquire_lock($redis)) {
         $value = recompute_fn();
-        $redis->set(REDIS_KEY, $value, 'EX', TTL);
+        $redis->set(REDIS_KEY, $value, 'EX', $expires);
         $this->release_lock($redis);
 
         break;
@@ -261,7 +272,7 @@ class LockWorker extends ChildWorker
 
 class XFetchWorker extends ChildWorker
 {
-  protected function run($redis)
+  protected function run($redis, $expires)
   {
     $result = HIT;
 
@@ -274,14 +285,20 @@ class XFetchWorker extends ChildWorker
   if (!$value || self::xfetch($delta, $ttl)) {
       $result = !$value ? MISS : EARLY;
 
+      $simul = $redis->incr(COUNT_KEY);
+      if ($simul > 1)
+        $result = SIMUL;
+
       $start = microtime(true);
       $value = recompute_fn();
       $delta = microtime(true) - $start;
 
       $pipe = $redis->pipeline(['atomic' => true]);
-      $pipe->setex(REDIS_KEY, TTL, $value);
-      $pipe->setex(DELTA_KEY, TTL, $delta);
+      $pipe->setex(REDIS_KEY, $expires, $value);
+      $pipe->setex(DELTA_KEY, $expires, $delta);
       $pipe->execute();
+
+      $redis->decr(COUNT_KEY);
     }
 
     return $result;

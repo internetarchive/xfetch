@@ -21,7 +21,9 @@ define('MISS',    0x01);
 define('EARLY',   0x02);
 define('RETRY',   0x10);
 define('SIMUL',   0x20);
+define('CONTEND', 0x40);
 define('UNKNOWN', 0x7F);
+define('PROCERR', 0xFF);
 
 /**
  * Redis keys.
@@ -203,6 +205,8 @@ class Harness
         $this->incr_tally('earlies');
       break;
 
+      case PROCERR:
+      case UNKNOWN:
       default:
         // stash in default bucket and clear (because modifiers should not be checked)
         $this->incr_tally("exit $exitcode");
@@ -214,9 +218,13 @@ class Harness
     if ($exitcode & RETRY)
       $this->incr_tally('retries');
 
-    // SIMUL modified (indicating simultaneous recompute of value)
+    // SIMUL modifier (indicating simultaneous recompute of value)
     if ($exitcode & SIMUL)
       $this->incr_tally('simul. recomputes');
+
+    // CONTEND modifier (indicating lock contention)
+    if ($exitcode & CONTEND)
+      $this->incr_tally('lock contention');
 
     // report stats every 'n' seconds
     if ($this->report_time_t > time())
@@ -238,6 +246,7 @@ class Harness
 
 abstract class ChildWorker
 {
+  public $result = UNKNOWN;
   public $pid = -1;
   public $redis;
   public $expires;
@@ -270,14 +279,16 @@ abstract class ChildWorker
 
     // go
     try {
-      exit($this->run());
+      $this->run();
     } catch (Exception $e) {
-      exit(-1);
+      $this->result = PROCERR;
     }
+
+    exit($this->result);
   }
 
   /**
-   * @return int
+   *
    */
   abstract protected function run();
 
@@ -298,7 +309,11 @@ abstract class ChildWorker
    */
   protected function recompute_start()
   {
-    return $this->redis->incr(SIMUL_KEY) > 1;
+    $simul = ($this->redis->incr(SIMUL_KEY) > 1);
+    if ($simul)
+      $this->result |= SIMUL;
+
+    return $simul;
   }
 
   /**
@@ -311,12 +326,22 @@ abstract class ChildWorker
 
   protected function lock_acquire()
   {
-    return $this->redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_TTL, 'NX');
+    $acquired = $this->redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_TTL, 'NX');
+    if (!$acquired)
+      $this->result |= CONTEND;
+
+    return $acquired;
   }
 
   protected function lock_release()
   {
     $this->redis->del(LOCK_KEY);
+  }
+
+  protected function retry()
+  {
+    usleep(10 * 1000);
+    $this->result |= RETRY;
   }
 }
 
@@ -328,22 +353,18 @@ class FetchWorker extends ChildWorker
 {
   protected function run()
   {
-    $result = HIT;
-
     $value = $this->redis->get(REDIS_KEY);
-    if (!$value) {
-      $result = MISS;
+    $this->result = $value ? HIT : MISS;
 
-      if ($this->recompute_start())
-        $result |= SIMUL;
+    if ($value)
+      return;
 
-      $value = $this->recompute_fn();
-      $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
+    $this->recompute_start();
 
-      $this->recompute_finish();
-    }
+    $value = $this->recompute_fn();
+    $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
 
-    return $result;
+    $this->recompute_finish();
   }
 }
 
@@ -355,33 +376,29 @@ class LockWorker extends ChildWorker
 {
   protected function run()
   {
-    $result = HIT;
-    for (;;) {
-      $value = $this->redis->get(REDIS_KEY);
-      if ($value)
-        break;
+    $value = $this->redis->get(REDIS_KEY);
+    $this->result = $value ? HIT : MISS;
 
-      $result = MISS;
-
-      if ($this->lock_acquire()) {
-        // simultaneous recomputes should never happen with locking, but check anyway
-        if ($r = $this->recompute_start())
-          $result |= SIMUL;
+    $locked = false;
+    while (!$value) {
+      $locked = $this->lock_acquire();
+      if ($locked) {
+        $this->recompute_start();
 
         $value = $this->recompute_fn();
         $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
 
         $this->recompute_finish();
-        $this->lock_release();
 
         break;
       }
 
-      $result |= RETRY;
-      usleep(100 * 1000);
+      $this->retry();
+      $value = $this->redis->get(REDIS_KEY);
     }
 
-    return $result;
+    if ($locked)
+      $this->lock_release();
   }
 }
 
@@ -393,33 +410,31 @@ class XFetchWorker extends ChildWorker
 {
   protected function run()
   {
-    $result = HIT;
-
     $pipe = $this->redis->pipeline(['atomic' => true]);
     $pipe->ttl(REDIS_KEY);
     $pipe->get(REDIS_KEY);
     $pipe->get(DELTA_KEY);
     list($ttl, $value, $delta) = $pipe->execute();
 
-  if (!$value || self::xfetch($delta, $ttl)) {
-      $result = !$value ? MISS : EARLY;
+    if (!$value)
+      $this->result = MISS;
+    else if (self::xfetch($delta, $ttl))
+      $this->result = EARLY;
+    else
+      return $this->result = HIT;
 
-      if ($this->recompute_start())
-        $result |= SIMUL;
+    $this->recompute_start();
 
-      $start = microtime(true);
-      $value = $this->recompute_fn();
-      $delta = microtime(true) - $start;
+    $start = microtime(true);
+    $value = $this->recompute_fn();
+    $delta = microtime(true) - $start;
 
-      $pipe = $this->redis->pipeline(['atomic' => true]);
-      $pipe->setex(REDIS_KEY, $this->expires, $value);
-      $pipe->setex(DELTA_KEY, $this->expires, $delta);
-      $pipe->execute();
+    $pipe = $this->redis->pipeline(['atomic' => true]);
+    $pipe->setex(REDIS_KEY, $this->expires, $value);
+    $pipe->setex(DELTA_KEY, $this->expires, $delta);
+    $pipe->execute();
 
-      $this->recompute_finish();
-    }
-
-    return $result;
+    $this->recompute_finish();
   }
 
   private static function xfetch($delta, $ttl)

@@ -47,7 +47,20 @@ exit(main($argv));
  */
 function main($argv)
 {
-  $harness = new Harness();
+  static $classes = [
+    'fetch'     => 'FetchWorker',
+    'lock'      => 'LockWorker',
+    'xfetch'    => 'XFetchWorker',
+  ];
+
+  if (count($argv) != 2)
+    return usage($argv);
+
+  $strategy = $argv[1];
+  if (!isset($classes[$strategy]))
+    return usage($argv);
+
+  $harness = new Harness($classes[$strategy]);
 
   // install signal handler to exit on Ctrl+C
   pcntl_signal(SIGINT, function () use (&$harness) {
@@ -65,12 +78,32 @@ function main($argv)
   return 0;
 }
 
+function usage($argv)
+{
+  $pgm = basename($argv[0]);
+
+  echo <<<EOS
+$pgm <strategy>
+
+Cache strategies
+  fetch     Standard cache strategy
+  lock      Locked recompute
+  xfetch    XFetch
+
+EOS;
+
+  return 1;
+}
+
 /**
  *
  */
 
 class Harness
 {
+  // no bourgeoisie allowed
+  private $worker_class;
+
   // map of PID => Worker objects
   private $workers = [];
   // indicates created Workers are in the first-pass and should be ignored, as the cache is cold
@@ -85,8 +118,9 @@ class Harness
 
   private $halt = false;
 
-  public function __construct()
+  public function __construct($worker_class)
   {
+    $this->worker_class = $worker_class;
     $this->report_time_t = time() + REPORT_EVERY_SEC;
   }
 
@@ -133,7 +167,7 @@ class Harness
   private function maintain_worker_count()
   {
     while (count($this->workers) < WORKERS) {
-      $worker = new XFetchWorker($this->first_pass ? INITIAL_TTL : TTL);
+      $worker = new $this->worker_class($this->first_pass ? INITIAL_TTL : TTL);
       $worker->first_pass = $this->first_pass;
 
       $pid = $worker->start();

@@ -47,129 +47,161 @@ exit(main($argv));
  */
 function main($argv)
 {
+  $harness = new Harness();
+
   // install signal handler to exit on Ctrl+C
-  $halt = false;
-  pcntl_signal(SIGINT, function () use (&$halt) {
+  pcntl_signal(SIGINT, function () use (&$harness) {
     echo "Halting...\n";
-    $halt = true;
+    $harness->halt();
   });
 
-  // clear the cached value from Redis
+  // clear the cached values from Redis (to clear any cruft from prior runs)
   $redis = new Predis\Client();
   $redis->del(REDIS_KEY, LOCK_KEY, DELTA_KEY, SIMUL_KEY);
 
-  $workers = [];
-  $first_pass = true;
-
-  $total = 0;
-  $tally = [];
-
-  $report_time_t = time() + REPORT_EVERY_SEC;
-
-  do {
-    // keep max. workers running
-    $added = 0;
-    while (!$halt && count($workers) < WORKERS) {
-      $worker = new XFetchWorker($first_pass ? INITIAL_TTL : TTL);
-      $worker->first_pass = $first_pass;
-
-      $pid = $worker->start();
-
-      $workers[$pid] = $worker;
-      $added++;
-    }
-
-    // reset to indicate new workers are post-first-pass (which plays into stats gathering)
-    $first_pass = false;
-
-    // wait for a child process to exit
-    $pid = pcntl_wait($status);
-    if ($pid === -1)
-      exit("Could not wait for child process\n");
-
-    // remove from pool and get exit code
-    $worker = $workers[$pid];
-    unset($workers[$pid]);
-    $exitcode = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : UNKNOWN;
-
-    // don't gather stats for the first pass; this allows for stats to be gathered only once the
-    // cache is warm
-    if (!$worker->first_pass)
-      tally_stats($exitcode, $total, $tally);
-
-    // report stats every 'n' seconds, but only report when a full round of workers have completed
-    if (!$halt && ($total >= WORKERS) && ($report_time_t <= time())) {
-      report_stats($total, $tally);
-
-      // calc next report time
-      $report_time_t = time() + REPORT_EVERY_SEC;
-    }
-
-    // allow for signals to be dispatched ... this is used in place of declare(ticks=1)
-    if (!$halt)
-      pcntl_signal_dispatch();
-  } while (!$halt || count($workers));
-
-  // final report
-  report_stats($total, $tally);
+  $harness->start();
+  $harness->report_stats();
 
   return 0;
 }
 
 /**
- * Dummy recompute function.
+ *
  */
-function recompute_fn()
+
+class Harness
 {
-  usleep(DELTA_MS * 1000);
-  return 'gnusto';
-}
+  // map of PID => Worker objects
+  private $workers = [];
+  // indicates created Workers are in the first-pass and should be ignored, as the cache is cold
+  private $first_pass = true;
 
-function tally_stats($exitcode, &$total, &$tally)
-{
-  $total++;
+  // stats
+  private $total = 0;
+  private $tally = [];
 
-  // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
-  // the upper nibble modifier flags
-  switch ($exitcode & 0x0F) {
-    case HIT:
-      incr_tally($tally, 'hits');
-    break;
+  // next time_t to report gathered stats
+  private $report_time_t;
 
-    case MISS:
-      incr_tally($tally, 'misses');
-    break;
+  private $halt = false;
 
-    case EARLY:
-      incr_tally($tally, 'earlies');
-    break;
-
-    default:
-      // stash in default bucket and exit (don't check for modifiers)
-      incr_tally($tally, "exit $exitcode");
-      return;
+  public function __construct()
+  {
+    $this->report_time_t = time() + REPORT_EVERY_SEC;
   }
 
-  if (($exitcode & RETRY) != 0)
-    incr_tally($tally, 'retries');
+  public function start()
+  {
+    // main loop
+    while (!$this->halt) {
+      // keep max. workers running
+      $this->maintain_worker_count();
 
-  if (($exitcode & SIMUL) != 0)
-    incr_tally($tally, 'simul. recomputes');
-}
+      // reset to indicate additional workers are post-first-pass (which plays into stats gathering)
+      $this->first_pass = false;
 
-function incr_tally(&$tally, $label)
-{
-  isset($tally[$label]) ? $tally[$label]++ : ($tally[$label] = 1);
-}
+      // wait for a child process to exit
+      $worker = $this->wait_for_completion();
 
-function report_stats($total, $tally)
-{
-  ksort($tally);
+      // don't gather stats for the first pass; this allows for stats to be gathered only once the
+      // cache is warm
+      if (!$worker->first_pass)
+        $this->tally_stats($worker->exitcode);
 
-  echo "$total samples:\n";
-  foreach ($tally as $label => $count)
-    echo "  $label\t$count\n";
-  echo "\n";
+      // report stats every 'n' seconds, but only report when a full round of workers have completed
+      if (($this->total >= WORKERS) && ($this->report_time_t <= time())) {
+        $this->report_stats();
+
+        // calc next report time
+        $this->report_time_t = time() + REPORT_EVERY_SEC;
+      }
+
+      // allow for signals to be dispatched ... this is used in place of declare(ticks=1)
+      pcntl_signal_dispatch();
+    }
+
+    // cleanup loop
+    while (count($this->workers))
+      $this->wait_for_completion();
+  }
+
+  public function halt()
+  {
+    $this->halt = true;
+  }
+
+  private function maintain_worker_count()
+  {
+    while (count($this->workers) < WORKERS) {
+      $worker = new XFetchWorker($this->first_pass ? INITIAL_TTL : TTL);
+      $worker->first_pass = $this->first_pass;
+
+      $pid = $worker->start();
+
+      $this->workers[$pid] = $worker;
+    }
+  }
+
+  private function wait_for_completion()
+  {
+    $pid = pcntl_wait($status);
+    if ($pid === -1)
+      exit("Could not wait for child process\n");
+
+    // remove from pool and get exit code
+    $worker = $this->workers[$pid];
+    unset($this->workers[$pid]);
+    $worker->exitcode = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : UNKNOWN;
+
+    return $worker;
+  }
+
+  public function report_stats()
+  {
+    ksort($this->tally);
+
+    echo "{$this->total} samples:\n";
+    foreach ($this->tally as $label => $count)
+      echo "  $label\t$count\n";
+    echo "\n";
+  }
+
+  private function tally_stats($exitcode)
+  {
+    $this->total++;
+
+    // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
+    // the upper nibble modifier flags
+    switch ($exitcode & 0x0F) {
+      case HIT:
+        $this->incr_tally('hits');
+      break;
+
+      case MISS:
+        $this->incr_tally('misses');
+      break;
+
+      case EARLY:
+        $this->incr_tally('earlies');
+      break;
+
+      default:
+        // stash in default bucket and exit (don't check for modifiers)
+        $this->incr_tally("exit $exitcode");
+        return;
+    }
+
+    if (($exitcode & RETRY) != 0)
+      $this->incr_tally('retries');
+
+    if (($exitcode & SIMUL) != 0)
+      $this->incr_tally('simul. recomputes');
+  }
+
+  private function incr_tally($label)
+  {
+    isset($this->tally[$label]) ? $this->tally[$label]++ : ($this->tally[$label] = 1);
+  }
 }
 
 /**
@@ -222,6 +254,15 @@ abstract class ChildWorker
   abstract protected function run();
 
   /**
+   * Dummy recompute function.
+   */
+  protected function recompute_fn()
+  {
+    usleep(DELTA_MS * 1000);
+    return 'gnusto';
+  }
+
+  /**
    * Track simultaneous recomputes.
    *
    * @return boolean Indicating if other processes are also recomputing.
@@ -268,7 +309,7 @@ class FetchWorker extends ChildWorker
       if ($this->recompute_start())
         $result |= SIMUL;
 
-      $value = recompute_fn();
+      $value = $this->recompute_fn();
       $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
 
       $this->recompute_finish();
@@ -299,7 +340,7 @@ class LockWorker extends ChildWorker
         if ($r = $this->recompute_start())
           $result |= SIMUL;
 
-        $value = recompute_fn();
+        $value = $this->recompute_fn();
         $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
 
         $this->recompute_finish();
@@ -339,7 +380,7 @@ class XFetchWorker extends ChildWorker
         $result |= SIMUL;
 
       $start = microtime(true);
-      $value = recompute_fn();
+      $value = $this->recompute_fn();
       $delta = microtime(true) - $start;
 
       $pipe = $this->redis->pipeline(['atomic' => true]);

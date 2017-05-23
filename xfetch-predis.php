@@ -10,27 +10,19 @@ Predis\Autoloader::register();
  * Times in seconds.
  */
 define('TTL', 12);
-define('INITIAL_TTL', 3);
-define('DELTA', 1);
+define('INITIAL_TTL', 12);
+define('DELTA_MS', 500);
 define('LOCK_TTL', 10);
 
 /**
  * Child process exit codes (indicating cache result).
  */
-define('HIT',     0);
-define('MISS',    1);
-define('EARLY',   2);
-define('RETRY',   3);
-define('SIMUL',   4);
-define('UNKNOWN', 127);
-
-$EXITCODE_TO_LABEL = [
-  HIT     => 'hits',
-  MISS    => 'misses',
-  EARLY   => 'earlies',
-  RETRY   => 'retries',
-  SIMUL   => 'simul recomputes',
-];
+define('HIT',     0x00);
+define('MISS',    0x01);
+define('EARLY',   0x02);
+define('RETRY',   0x10);
+define('SIMUL',   0x20);
+define('UNKNOWN', 0x7F);
 
 /**
  * Redis keys.
@@ -55,8 +47,6 @@ exit(main($argv));
  */
 function main($argv)
 {
-  global $EXITCODE_TO_LABEL;
-
   // install signal handler to exit on Ctrl+C
   $halt = false;
   pcntl_signal(SIGINT, function () use (&$halt) {
@@ -104,11 +94,8 @@ function main($argv)
 
     // don't gather stats for the first pass; this allows for stats to be gathered only once the
     // cache is warm
-    if (!$worker->first_pass) {
-      $total++;
-      $label = isset($EXITCODE_TO_LABEL[$exitcode]) ? $EXITCODE_TO_LABEL[$exitcode] : "exit $exitcode";
-      isset($tally[$label]) ? $tally[$label]++ : ($tally[$label] = 1);
-    }
+    if (!$worker->first_pass)
+      tally_stats($exitcode, $total, $tally);
 
     // report stats every 'n' seconds, but only report when a full round of workers have completed
     if (!$halt && ($total >= WORKERS) && ($report_time_t <= time())) {
@@ -134,8 +121,45 @@ function main($argv)
  */
 function recompute_fn()
 {
-  sleep(DELTA);
+  usleep(DELTA_MS * 1000);
   return 'gnusto';
+}
+
+function tally_stats($exitcode, &$total, &$tally)
+{
+  $total++;
+
+  // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
+  // the upper nibble modifier flags
+  switch ($exitcode & 0x0F) {
+    case HIT:
+      incr_tally($tally, 'hits');
+    break;
+
+    case MISS:
+      incr_tally($tally, 'misses');
+    break;
+
+    case EARLY:
+      incr_tally($tally, 'earlies');
+    break;
+
+    default:
+      // stash in default bucket and exit (don't check for modifiers)
+      incr_tally($tally, "exit $exitcode");
+      return;
+  }
+
+  if (($exitcode & RETRY) != 0)
+    incr_tally($tally, 'retries');
+
+  if (($exitcode & SIMUL) != 0)
+    incr_tally($tally, 'simul. recomputes');
+}
+
+function incr_tally(&$tally, $label)
+{
+  isset($tally[$label]) ? $tally[$label]++ : ($tally[$label] = 1);
 }
 
 function report_stats($total, $tally)
@@ -179,6 +203,10 @@ abstract class ChildWorker
     // replace parent signal handler w/ nop
     pcntl_signal(SIGINT, function () {
     });
+
+    // to keep all the processes from executing in lockstep, introduce some stochasticity with a
+    // random pause before starting execution
+    usleep(mt_rand(10, 500) * 1000);
 
     // go
     try {
@@ -235,7 +263,10 @@ class FetchWorker extends ChildWorker
 
     $value = $this->redis->get(REDIS_KEY);
     if (!$value) {
-      $result = $this->recompute_start() ? SIMUL : MISS;
+      $result = MISS;
+
+      if ($this->recompute_start())
+        $result |= SIMUL;
 
       $value = recompute_fn();
       $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
@@ -261,24 +292,23 @@ class LockWorker extends ChildWorker
       if ($value)
         break;
 
-      if ($result == HIT)
-        $result = MISS;
+      $result = MISS;
 
       if ($this->lock_acquire()) {
         // simultaneous recomputes should never happen with locking, but check anyway
-        if ($this->recompute_start())
-          $result = SIMUL;
+        if ($r = $this->recompute_start())
+          $result |= SIMUL;
 
         $value = recompute_fn();
         $this->redis->set(REDIS_KEY, $value, 'EX', $this->expires);
 
-        $this->lock_release();
         $this->recompute_finish();
+        $this->lock_release();
 
         break;
       }
 
-      $result = RETRY;
+      $result |= RETRY;
       usleep(100 * 1000);
     }
 
@@ -306,7 +336,7 @@ class XFetchWorker extends ChildWorker
       $result = !$value ? MISS : EARLY;
 
       if ($this->recompute_start())
-        $result = SIMUL;
+        $result |= SIMUL;
 
       $start = microtime(true);
       $value = recompute_fn();
@@ -331,7 +361,7 @@ class XFetchWorker extends ChildWorker
 
     $xfetch = $delta * BETA * $rnd;
 
-    $recompute = (time() - $xfetch) >= $expiry;
+    $recompute = ($now - $xfetch) >= $expiry;
     if ($recompute)
       echo "* early recompute! delta:$delta ttl:$ttl rnd:$rnd xfetch:$xfetch\n";
 

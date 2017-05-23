@@ -127,7 +127,7 @@ class Harness
   {
     // launch first pass of workers
     while (count($this->workers) < WORKERS)
-      $this->add_worker();
+      $this->add_worker(true);
 
     // main loop
     while (!$this->halt) {
@@ -137,9 +137,7 @@ class Harness
       // ... and start one to take its place
       $this->add_worker();
 
-      // only gather and report stats once a full round of workers have completed; this allows the
-      // cache to warm prior to examining results
-      if (++$this->total >= WORKERS)
+      if (!$worker->first_pass)
         $this->tally_stats($worker->exitcode);
 
       // allow for signals to be dispatched ... this is used in place of declare(ticks=1)
@@ -156,9 +154,10 @@ class Harness
     $this->halt = true;
   }
 
-  private function add_worker()
+  private function add_worker($first_pass = false)
   {
     $worker = new $this->worker_class(TTL);
+    $worker->first_pass = $first_pass;
     $pid = $worker->start();
 
     $this->workers[$pid] = $worker;
@@ -190,6 +189,8 @@ class Harness
 
   private function tally_stats($exitcode)
   {
+    $this->total++;
+
     // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
     // the upper nibble modifier flags
     switch ($exitcode & 0x0F) {

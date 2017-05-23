@@ -45,6 +45,16 @@ define('WORKERS', 50);
 define('REPORT_EVERY_SEC', 5);
 define('BETA', 1.0);
 
+/**
+ * Parameter name to class and description.
+ */
+$strategies = [
+  'fetch'     => [ 'FetchWorker',       'simple cache strategy' ],
+  'locked'    => [ 'LockWorker',        'locked recompute' ],
+  'xfetch'    => [ 'XFetchWorker',      'xfetch', ],
+  'xlocked'   => [ 'XFetchLockWorker',  'xfetch + locked recompute' ],
+];
+
 // run it!
 exit(main($argv));
 
@@ -53,21 +63,16 @@ exit(main($argv));
  */
 function main($argv)
 {
-  static $classes = [
-    'fetch'     => 'FetchWorker',
-    'lock'      => 'LockWorker',
-    'xfetch'    => 'XFetchWorker',
-    'xlocked'   => 'XFetchLockWorker',
-  ];
+  global $strategies;
 
   if (count($argv) != 2)
     return usage($argv);
 
   $strategy = $argv[1];
-  if (!isset($classes[$strategy]))
+  if (!isset($strategies[$strategy]))
     return usage($argv);
 
-  $harness = new Harness($classes[$strategy]);
+  $harness = new Harness($strategies[$strategy][0]);
 
   // install signal handler to exit on Ctrl+C
   pcntl_signal(SIGINT, function () use (&$harness) {
@@ -87,18 +92,20 @@ function main($argv)
 
 function usage($argv)
 {
+  global $strategies;
+
   $pgm = basename($argv[0]);
 
   echo <<<EOS
 $pgm <strategy>
 
-Cache strategies
-  fetch     Standard cache strategy
-  lock      Locked recompute
-  xfetch    XFetch
-  xlocked   XFetch + recompute lock
+Cache strategies:
 
 EOS;
+  foreach ($strategies as $param => list(, $desc)) {
+    $param = str_pad($param, 12);
+    echo "  $param$desc\n";
+  }
 
   return 1;
 }
@@ -189,8 +196,10 @@ class Harness
     ksort($this->tally);
 
     echo "{$this->total} samples:\n";
-    foreach ($this->tally as $label => $count)
-      echo "  $label\t$count\n";
+    foreach ($this->tally as $label => $count) {
+      $label = str_pad($label, 20);
+      echo "  $label$count\n";
+    }
     echo "\n";
   }
 

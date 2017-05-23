@@ -10,7 +10,6 @@ Predis\Autoloader::register();
  * Times in seconds.
  */
 define('TTL', 12);
-define('INITIAL_TTL', 12);
 define('DELTA_MS', 500);
 define('LOCK_TTL', 10);
 
@@ -106,8 +105,6 @@ class Harness
 
   // map of PID => Worker objects
   private $workers = [];
-  // indicates created Workers are in the first-pass and should be ignored, as the cache is cold
-  private $first_pass = true;
 
   // stats
   private $total = 0;
@@ -126,29 +123,22 @@ class Harness
 
   public function start()
   {
+    // launch first pass of workers
+    while (count($this->workers) < WORKERS)
+      $this->add_worker();
+
     // main loop
     while (!$this->halt) {
-      // keep max. workers running
-      $this->maintain_worker_count();
-
-      // reset to indicate additional workers are post-first-pass (which plays into stats gathering)
-      $this->first_pass = false;
-
-      // wait for a child process to exit
+      // wait for a child process to exit ...
       $worker = $this->wait_for_completion();
 
-      // don't gather stats for the first pass; this allows for stats to be gathered only once the
-      // cache is warm
-      if (!$worker->first_pass)
+      // ... and start one to take its place
+      $this->add_worker();
+
+      // only gather and report stats once a full round of workers have completed; this allows the
+      // cache to warm prior to examining results
+      if (++$this->total >= WORKERS)
         $this->tally_stats($worker->exitcode);
-
-      // report stats every 'n' seconds, but only report when a full round of workers have completed
-      if (($this->total >= WORKERS) && ($this->report_time_t <= time())) {
-        $this->report_stats();
-
-        // calc next report time
-        $this->report_time_t = time() + REPORT_EVERY_SEC;
-      }
 
       // allow for signals to be dispatched ... this is used in place of declare(ticks=1)
       pcntl_signal_dispatch();
@@ -164,16 +154,12 @@ class Harness
     $this->halt = true;
   }
 
-  private function maintain_worker_count()
+  private function add_worker()
   {
-    while (count($this->workers) < WORKERS) {
-      $worker = new $this->worker_class($this->first_pass ? INITIAL_TTL : TTL);
-      $worker->first_pass = $this->first_pass;
+    $worker = new $this->worker_class(TTL);
+    $pid = $worker->start();
 
-      $pid = $worker->start();
-
-      $this->workers[$pid] = $worker;
-    }
+    $this->workers[$pid] = $worker;
   }
 
   private function wait_for_completion()
@@ -202,8 +188,6 @@ class Harness
 
   private function tally_stats($exitcode)
   {
-    $this->total++;
-
     // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
     // the upper nibble modifier flags
     switch ($exitcode & 0x0F) {
@@ -220,16 +204,26 @@ class Harness
       break;
 
       default:
-        // stash in default bucket and exit (don't check for modifiers)
+        // stash in default bucket and clear (because modifiers should not be checked)
         $this->incr_tally("exit $exitcode");
-        return;
+        $exitcode = 0;
+      break;
     }
 
-    if (($exitcode & RETRY) != 0)
+    // RETRY modifier (indicating worker did not acquire lock on first attempt)
+    if ($exitcode & RETRY)
       $this->incr_tally('retries');
 
-    if (($exitcode & SIMUL) != 0)
+    // SIMUL modified (indicating simultaneous recompute of value)
+    if ($exitcode & SIMUL)
       $this->incr_tally('simul. recomputes');
+
+    // report stats every 'n' seconds
+    if ($this->report_time_t > time())
+      return;
+
+    $this->report_stats();
+    $this->report_time_t = time() + REPORT_EVERY_SEC;
   }
 
   private function incr_tally($label)

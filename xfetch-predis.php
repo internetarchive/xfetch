@@ -15,13 +15,18 @@ define('LOCK_TTL', 10);
 
 /**
  * Child process exit codes (indicating cache result).
+ *
+ * Bottom nibble is result, top nibble is modifier, UNKNOWN and PROCERR are general error codes.
  */
 define('HIT',     0x00);
 define('MISS',    0x01);
 define('EARLY',   0x02);
+
 define('RETRY',   0x10);
 define('SIMUL',   0x20);
 define('CONTEND', 0x40);
+define('DUCKED',  0x80);
+
 define('UNKNOWN', 0x7F);
 define('PROCERR', 0xFF);
 
@@ -52,6 +57,7 @@ function main($argv)
     'fetch'     => 'FetchWorker',
     'lock'      => 'LockWorker',
     'xfetch'    => 'XFetchWorker',
+    'xlocked'   => 'XFetchLockWorker',
   ];
 
   if (count($argv) != 2)
@@ -90,6 +96,7 @@ Cache strategies
   fetch     Standard cache strategy
   lock      Locked recompute
   xfetch    XFetch
+  xlocked   XFetch + recompute lock
 
 EOS;
 
@@ -226,6 +233,10 @@ class Harness
     // CONTEND modifier (indicating lock contention)
     if ($exitcode & CONTEND)
       $this->incr_tally('lock contention');
+
+    // DUCKED modifier (indicates EARLY recompute but lock was held, so used existing value)
+    if ($exitcode & DUCKED)
+      $this->incr_tally('ducked-out');
 
     // report stats every 'n' seconds
     if ($this->report_time_t > time())
@@ -411,11 +422,7 @@ class XFetchWorker extends ChildWorker
 {
   protected function run()
   {
-    $pipe = $this->redis->pipeline(['atomic' => true]);
-    $pipe->ttl(REDIS_KEY);
-    $pipe->get(REDIS_KEY);
-    $pipe->get(DELTA_KEY);
-    list($ttl, $value, $delta) = $pipe->execute();
+    list($ttl, $value, $delta) = $this->read();
 
     if (!$value)
       $this->result = MISS;
@@ -424,21 +431,44 @@ class XFetchWorker extends ChildWorker
     else
       return $this->result = HIT;
 
+    $this->full_recompute();
+  }
+
+  /**
+   * @return array [ $ttl, $value, $delta ]
+   */
+  protected function read()
+  {
+    $pipe = $this->redis->pipeline(['atomic' => true]);
+    $pipe->ttl(REDIS_KEY);
+    $pipe->get(REDIS_KEY);
+    $pipe->get(DELTA_KEY);
+
+    return $pipe->execute();
+  }
+
+  protected function full_recompute()
+  {
     $this->recompute_start();
 
     $start = microtime(true);
     $value = $this->recompute_fn();
     $delta = microtime(true) - $start;
 
-    $pipe = $this->redis->pipeline(['atomic' => true]);
-    $pipe->setex(REDIS_KEY, $this->expires, $value);
-    $pipe->setex(DELTA_KEY, $this->expires, $delta);
-    $pipe->execute();
+    $this->write($value, $delta);
 
     $this->recompute_finish();
   }
 
-  private static function xfetch($delta, $ttl)
+  protected function write($value, $delta)
+  {
+    $pipe = $this->redis->pipeline(['atomic' => true]);
+    $pipe->setex(REDIS_KEY, $this->expires, $value);
+    $pipe->setex(DELTA_KEY, $this->expires, $delta);
+    $pipe->execute();
+  }
+
+  public static function xfetch($delta, $ttl)
   {
     $now = time();
     $expiry = $now + $ttl;
@@ -451,5 +481,46 @@ class XFetchWorker extends ChildWorker
       echo "* early recompute! delta:$delta ttl:$ttl rnd:$rnd xfetch:$xfetch\n";
 
     return $recompute;
+  }
+}
+
+/**
+ *
+ */
+
+class XFetchLockWorker extends XFetchWorker
+{
+  protected function run()
+  {
+    list($ttl, $value, $delta) = $this->read();
+
+    if (!$value)
+      $this->result = MISS;
+    else if (self::xfetch($delta, $ttl))
+      $this->result = EARLY;
+    else
+      return $this->result = HIT;
+
+    $locked = false;
+    do {
+      $locked = $this->lock_acquire();
+      if (!$locked && $value) {
+        $this->result |= DUCKED;
+
+        break;
+      }
+
+      if ($locked) {
+        $this->full_recompute();
+
+        break;
+      }
+
+      $this->retry();
+      list(, $value, ) = $this->read();
+    } while (!$value);
+
+    if ($locked)
+      $this->lock_release();
   }
 }

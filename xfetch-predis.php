@@ -21,14 +21,13 @@ define('LOCK_TTL', 10);
 define('HIT',     0x00);
 define('MISS',    0x01);
 define('EARLY',   0x02);
+define('PROCERR', 0x0E);
+define('UNKNOWN', 0x0F);
 
 define('RETRY',   0x10);
 define('SIMUL',   0x20);
 define('CONTEND', 0x40);
 define('DUCKED',  0x80);
-
-define('UNKNOWN', 0x7F);
-define('PROCERR', 0xFF);
 
 /**
  * Redis keys.
@@ -151,8 +150,8 @@ class Harness
       // ... and start one to take its place
       $this->add_worker();
 
-      if (!$worker->first_pass)
-        $this->tally_stats($worker->exitcode);
+      // gather stats for this worker's results
+      $this->tally_stats($worker);
 
       // allow for signals to be dispatched ... this is used in place of declare(ticks=1)
       pcntl_signal_dispatch();
@@ -188,6 +187,11 @@ class Harness
     unset($this->workers[$pid]);
     $worker->exitcode = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : UNKNOWN;
 
+    if (pcntl_wifsignaled($status)) {
+      $sig = pcntl_wtermsig($status);
+      echo "Worker {$worker->pid} terminated: $sig\n";
+    }
+
     return $worker;
   }
 
@@ -203,13 +207,16 @@ class Harness
     echo "\n";
   }
 
-  private function tally_stats($exitcode)
+  private function tally_stats($worker)
   {
+    if ($worker->first_pass)
+      return;
+
     $this->total++;
 
     // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
     // the upper nibble modifier flags
-    switch ($exitcode & 0x0F) {
+    switch ($worker->exitcode & 0x0F) {
       case HIT:
         $this->incr_tally('hits');
       break;
@@ -225,26 +232,24 @@ class Harness
       case PROCERR:
       case UNKNOWN:
       default:
-        // stash in default bucket and clear (because modifiers should not be checked)
         $this->incr_tally("exit $exitcode");
-        $exitcode = 0;
       break;
     }
 
     // RETRY modifier (indicating worker did not acquire lock on first attempt)
-    if ($exitcode & RETRY)
+    if ($worker->exitcode & RETRY)
       $this->incr_tally('retries');
 
     // SIMUL modifier (indicating simultaneous recompute of value)
-    if ($exitcode & SIMUL)
+    if ($worker->exitcode & SIMUL)
       $this->incr_tally('simul. recomputes');
 
     // CONTEND modifier (indicating lock contention)
-    if ($exitcode & CONTEND)
+    if ($worker->exitcode & CONTEND)
       $this->incr_tally('lock contention');
 
     // DUCKED modifier (indicates EARLY recompute but lock was held, so used existing value)
-    if ($exitcode & DUCKED)
+    if ($worker->exitcode & DUCKED)
       $this->incr_tally('ducked-out');
 
     // report stats every 'n' seconds
@@ -288,15 +293,16 @@ abstract class ChildWorker
       return $this->pid = $pid;
     }
 
+    //
     // in child process
+    //
 
-    // replace parent signal handler w/ nop
-    pcntl_signal(SIGINT, function () {
-    });
+    // block SIGINT (allow parent process to control shutdown)
+    pcntl_sigprocmask(SIG_BLOCK, [ SIGINT ]);
 
-    // to keep all the processes from executing in lockstep, introduce some stochasticity with a
+    // to keep the worker processes from executing in lockstep, introduce some stochasticity with a
     // random pause before starting execution
-    usleep(mt_rand(10, 500) * 1000);
+    usleep(mt_rand(10, 1000) * 1000);
 
     // go
     try {

@@ -16,14 +16,15 @@ define('LOCK_TTL', 10);
 /**
  * Child process exit codes (indicating cache result).
  *
- * Bottom nibble is result, top nibble is modifier, UNKNOWN and PROCERR are general error codes.
+ * Bottom 3 bits are cache result, top 5 bits are modifier, UNKNOWN and PROCERR are general errors.
  */
 define('HIT',     0x00);
 define('MISS',    0x01);
 define('EARLY',   0x02);
-define('PROCERR', 0x0E);
-define('UNKNOWN', 0x0F);
+define('PROCERR', 0x03);
+define('UNKNOWN', 0x04);
 
+define('RECOMP',  0x08);
 define('RETRY',   0x10);
 define('SIMUL',   0x20);
 define('CONTEND', 0x40);
@@ -214,9 +215,9 @@ class Harness
 
     $this->total++;
 
-    // exitcode is an octet bitmask, with the lower nibble an enumeration of possible results and
-    // the upper nibble modifier flags
-    switch ($worker->exitcode & 0x0F) {
+    // exitcode is an octet bitmask, with the lower 3 bits an enumeration of possible results and
+    // the upper 5 bits modifier flags
+    switch ($worker->exitcode & 0x07) {
       case HIT:
         $this->incr_tally('hits');
       break;
@@ -235,6 +236,10 @@ class Harness
         $this->incr_tally("exit $exitcode");
       break;
     }
+
+    // RECOMP modifier (indicating worker recomputed cache value)
+    if ($worker->exitcode & RECOMP)
+      $this->incr_tally('recomputes');
 
     // RETRY modifier (indicating worker did not acquire lock on first attempt)
     if ($worker->exitcode & RETRY)
@@ -325,6 +330,8 @@ abstract class ChildWorker
   protected function recompute_fn()
   {
     usleep(DELTA_MS * 1000);
+    $this->result |= RECOMP;
+
     return 'gnusto';
   }
 

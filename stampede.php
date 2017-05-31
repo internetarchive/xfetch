@@ -3,6 +3,10 @@
 
 /**
  *
+ * Cache stampede test harness.
+ *
+ * See README.md for explanation, configuration, and usage notes.
+ *
  * Copyright (C) 2017 Internet Archive
  *
  * This program is free software: you can redistribute it and/or modify
@@ -39,31 +43,24 @@ $redis_params = [];
 $redis_options = [];
 
 /**
- * Times in seconds.
+ * Harness parameters (parent process).
  */
-define('EXPIRES', 12);
-define('DELTA', 500);
-define('LOCK_EXPIRES', 10);
+define('WORKERS', 50);          // number of concurrent child processes
+define('REPORT_EVERY_SEC', 5);  // how often to print stats to stdout
 
 /**
- * Child process exit codes (indicating cache result).
- *
- * Bottom 3 bits are cache result, top 5 bits are modifier, UNKNOWN and PROCERR are general errors.
+ * Worker parameters (child process).
  */
-define('HIT',     0x00);
-define('MISS',    0x01);
-define('EARLY',   0x02);
-define('PROCERR', 0x03);
-define('UNKNOWN', 0x04);
-
-define('RECOMP',  0x08);
-define('RETRY',   0x10);
-define('SIMUL',   0x20);
-define('CONTEND', 0x40);
-define('DUCKED',  0x80);
+define('EXPIRES', 12);          // expiration time of cached value (in seconds)
+define('BETA', 1.0);            // XFetch beta value (default: 1.0, > 1.0 favors earlier recomputation,
+                                // < 1.0 favors later)
+define('DELTA', 500);           // time to recompute the value to be cached (in milliseconds)
 
 /**
  * Redis keys.
+ *
+ * WARNING: These are deleted at the start of each run and ruthlessly overwritten throughout
+ * execution.
  */
 define('REDIS_KEY', 'test:cache');
 define('LOCK_KEY',  'test:lock');
@@ -71,11 +68,22 @@ define('DELTA_KEY', 'test:delta');
 define('SIMUL_KEY', 'test:simul-recomputes');
 
 /**
- * Test parameters.
+ * Child process exit codes (indicating cache result).
+ *
+ * Bottom 3 bits indicate cache result, top 5 bits are modifiers.
  */
-define('WORKERS', 50);
-define('REPORT_EVERY_SEC', 5);
-define('BETA', 1.0);
+define('HIT',     0x00);        // cache hit
+define('MISS',    0x01);        // cache miss
+define('EARLY',   0x02);        // cache hit but volunteered for early recomputation
+define('PROCERR', 0x03);        // general child process error
+define('UNKNOWN', 0x04);        // unknown error
+
+define('RECOMP',  0x08);        // worker recomputed cache value
+define('RETRY',   0x10);        // worker paused to retry read / recomputation
+define('SIMUL',   0x20);        // simultaneous recompute detected
+define('CONTEND', 0x40);        // lock contention (failed to acquire lock)
+define('DUCKED',  0x80);        // "ducked out" (volunteer for early recompute failed to acquire
+                                // lock, so returned good value and called it a day)
 
 /**
  * Parameter name to class and description.
@@ -143,7 +151,9 @@ EOS;
 }
 
 /**
+ * Cache stampede test harness.
  *
+ * The Harness::start() event loop manages all child processes.
  */
 
 class Harness
@@ -163,15 +173,22 @@ class Harness
 
   private $halt = false;
 
+  /**
+   * @param string $worker_class    The name of a subclass of ChildWorker
+   */
   public function __construct($worker_class)
   {
     $this->worker_class = $worker_class;
     $this->report_time_t = time() + REPORT_EVERY_SEC;
   }
 
+  /**
+   * Test harness event loop.
+   */
   public function start()
   {
-    // launch first pass of workers
+    // launch first pass of workers ... these workers' test results are not tallied (to warm the
+    // cache)
     while (count($this->workers) < WORKERS)
       $this->add_worker(true);
 
@@ -220,6 +237,7 @@ class Harness
     unset($this->workers[$pid]);
     $worker->exitcode = pcntl_wifexited($status) ? pcntl_wexitstatus($status) : UNKNOWN;
 
+    // If process closed due to a signal, print to stdout
     if (pcntl_wifsignaled($status)) {
       $sig = pcntl_wtermsig($status);
       echo "Worker {$worker->pid} terminated: $sig\n";
@@ -228,6 +246,9 @@ class Harness
     return $worker;
   }
 
+  /**
+   * Emit a table of gathered statistics to stdout.
+   */
   public function report_stats()
   {
     ksort($this->tally);
@@ -240,8 +261,12 @@ class Harness
     echo "\n";
   }
 
+  /**
+   * Gather stats from the completed worker.
+   */
   private function tally_stats($worker)
   {
+    // ignore initial round of workers
     if ($worker->first_pass)
       return;
 
@@ -304,7 +329,11 @@ class Harness
 }
 
 /**
+ * Abstract base class for all cache strategies.
  *
+ * ChildWorker::start() will fork a child process and execute the ChildWorker::run() method in the
+ * child's context.  It also manages all the signal stuff and traps fatal exceptions so they're
+ * reported properly to Harness (in the parent process).
  */
 
 abstract class ChildWorker
@@ -314,6 +343,9 @@ abstract class ChildWorker
   public $redis;
   public $expires;
 
+  /**
+   * @param int $expires      Expiration time for cached value (in seconds)
+   */
   public function __construct($expires)
   {
     global $redis_params, $redis_options;
@@ -322,6 +354,11 @@ abstract class ChildWorker
     $this->expires = $expires;
   }
 
+  /**
+   * Fork the child process.
+   *
+   * @return int PID of child process
+   */
   public function start()
   {
     $pid = pcntl_fork();
@@ -354,12 +391,17 @@ abstract class ChildWorker
   }
 
   /**
+   * Execute cache strategy.
    *
+   * Code should modify the $result variable to indicate cache results.  Helper functions will do
+   * so automatically.
    */
   abstract protected function run();
 
   /**
    * Dummy recompute function.
+   *
+   * Adds the RECOMP modifier to $result.
    */
   protected function recompute_fn()
   {
@@ -370,7 +412,9 @@ abstract class ChildWorker
   }
 
   /**
-   * Track simultaneous recomputes.
+   * Report recomputation is starting.
+   *
+   * Adds SIMUL modifier if simultaneous recomputation is detected.
    *
    * @return boolean Indicating if other processes are also recomputing.
    * @see recompute_finish
@@ -392,20 +436,38 @@ abstract class ChildWorker
     $this->redis->decr(SIMUL_KEY);
   }
 
+  /**
+   * Acquire an advisory lock to prevent simultaneous recomputation.
+   *
+   * Adds CONTEND modifier if unable to acquire lock.
+   *
+   * @param boolean If lock acquired
+   */
   protected function lock_acquire()
   {
-    $acquired = $this->redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_EXPIRES, 'NX');
+    // 30 second expiration (for abandonment -- not a normal issue in this limited environment)
+    $acquired = $this->redis->set(LOCK_KEY, 'acquired', 'EX', 30, 'NX');
     if (!$acquired)
       $this->result |= CONTEND;
 
     return $acquired;
   }
 
+  /**
+   * Release the advisory lock.
+   *
+   * Does not check if lock was previously acquired.
+   */
   protected function lock_release()
   {
     $this->redis->del(LOCK_KEY);
   }
 
+  /**
+   * Pause to wait for retry (due to lock contention).
+   *
+   * Adds RETRY modifier.
+   */
   protected function retry()
   {
     usleep(10 * 1000);
@@ -414,7 +476,7 @@ abstract class ChildWorker
 }
 
 /**
- *
+ * Implementation of fetch strategy.
  */
 
 class FetchWorker extends ChildWorker
@@ -437,7 +499,7 @@ class FetchWorker extends ChildWorker
 }
 
 /**
- *
+ * Implementation of lock strategy.
  */
 
 class LockWorker extends ChildWorker
@@ -447,6 +509,7 @@ class LockWorker extends ChildWorker
     $value = $this->redis->get(REDIS_KEY);
     $this->result = $value ? HIT : MISS;
 
+    // if value was not available, acquire lock and recompute value
     $locked = false;
     while (!$value) {
       $locked = $this->lock_acquire();
@@ -461,6 +524,7 @@ class LockWorker extends ChildWorker
         break;
       }
 
+      // unable to acquire lock, pause and retry
       $this->retry();
       $value = $this->redis->get(REDIS_KEY);
     }
@@ -471,21 +535,26 @@ class LockWorker extends ChildWorker
 }
 
 /**
- *
+ * Implementation of XFetch strategy.
  */
 
 class XFetchWorker extends ChildWorker
 {
   protected function run()
   {
+    // XFetch requires value, its time-to-live, and the value's recompute time
     list($ttl, $value, $delta) = $this->read();
 
-    if (!$value)
+    // if no value or xfetch() is true
+    if (!$value) {
       $this->result = MISS;
-    else if (self::xfetch($delta, $ttl))
+    } else if (self::xfetch($delta, $ttl)) {
       $this->result = EARLY;
-    else
-      return $this->result = HIT;
+    } else {
+      $this->result = HIT;
+
+      return;
+    }
 
     $this->full_recompute();
   }
@@ -503,10 +572,14 @@ class XFetchWorker extends ChildWorker
     return $pipe->execute();
   }
 
+  /**
+   * Performs all the steps for recomputing and writing cache value.
+   */
   protected function full_recompute()
   {
     $this->recompute_start();
 
+    // note that microtime() returns time in *seconds* as a float with microsecond precision
     $start = microtime(true);
     $value = $this->recompute_fn();
     $delta = microtime(true) - $start;
@@ -524,6 +597,13 @@ class XFetchWorker extends ChildWorker
     $pipe->execute();
   }
 
+  /**
+   * The XFetch algorithm.
+   *
+   * @param float $delta  Recompute time (in seconds)
+   * @param float $ttl    Cache value's time-to-live (in seconds)
+   * @return boolean      TRUE if caller should recompute
+   */
   public static function xfetch($delta, $ttl)
   {
     $now = time();
@@ -541,7 +621,7 @@ class XFetchWorker extends ChildWorker
 }
 
 /**
- *
+ * Implementation of locked XFetch strategy.
  */
 
 class XFetchLockWorker extends XFetchWorker
@@ -550,17 +630,24 @@ class XFetchLockWorker extends XFetchWorker
   {
     list($ttl, $value, $delta) = $this->read();
 
-    if (!$value)
+    if (!$value) {
       $this->result = MISS;
-    else if (self::xfetch($delta, $ttl))
+    } else if (self::xfetch($delta, $ttl)) {
       $this->result = EARLY;
-    else
-      return $this->result = HIT;
+    } else {
+      $this->result = HIT;
 
+      return;
+    }
+
+    // acquire lock, recompute, write value
     $locked = false;
     do {
       $locked = $this->lock_acquire();
       if (!$locked && $value) {
+        // special case: Could not acquire lock (meaning another worker was recomputing the value)
+        // *but* this worker read a valid value.  Don't sweat it and use the valid value.  This is
+        // called "ducking out."
         $this->result |= DUCKED;
 
         break;
@@ -572,6 +659,7 @@ class XFetchLockWorker extends XFetchWorker
         break;
       }
 
+      // did not get value and did not acquire lock; pause and retry
       $this->retry();
       list(, $value, ) = $this->read();
     } while (!$value);

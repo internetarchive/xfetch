@@ -1,0 +1,318 @@
+stampede.php: 50 concurrent workers, 20s cache expiration, 500ms recompute time, XFetch beta: 1.00
+10s 837 samples:
+  hits                837
+
+* early recompute! delta:0.5005 ttl:2 rnd:0.0161 logrnd:-4.1263 xfetch:-2.0653 now:1496199104 expiry:1496199106
+* early recompute! delta:0.5005 ttl:1 rnd:0.0829 logrnd:-2.4896 xfetch:-1.2461 now:1496199105 expiry:1496199106
+20s 1795 samples:
+  hits                1795
+
+* early recompute! delta:0.5005 ttl:1 rnd:0.0985 logrnd:-2.3174 xfetch:-1.1599 now:1496199105 expiry:1496199106
+30s 2776 samples:
+  earlies             3
+  hits                2773
+  recomputes          3
+  simul. recomputes   2
+
+* early recompute! delta:0.5010 ttl:3 rnd:0.0010 logrnd:-6.9344 xfetch:-3.4744 now:1496199122 expiry:1496199125
+40s 3717 samples:
+  earlies             4
+  hits                3713
+  recomputes          4
+  simul. recomputes   2
+
+50s 4687 samples:
+  earlies             4
+  hits                4683
+  recomputes          4
+  simul. recomputes   2
+
+* early recompute! delta:0.5002 ttl:2 rnd:0.0086 logrnd:-4.7580 xfetch:-2.3798 now:1496199141 expiry:1496199143
+* early recompute! delta:0.5002 ttl:2 rnd:0.0146 logrnd:-4.2299 xfetch:-2.1157 now:1496199141 expiry:1496199143
+60s 5644 samples:
+  earlies             6
+  hits                5638
+  recomputes          6
+  simul. recomputes   3
+
+70s 6582 samples:
+  earlies             6
+  hits                6576
+  recomputes          6
+  simul. recomputes   3
+
+* early recompute! delta:0.5005 ttl:2 rnd:0.0122 logrnd:-4.4057 xfetch:-2.2048 now:1496199159 expiry:1496199161
+* early recompute! delta:0.5005 ttl:2 rnd:0.0177 logrnd:-4.0326 xfetch:-2.0181 now:1496199159 expiry:1496199161
+80s 7553 samples:
+  earlies             8
+  hits                7545
+  recomputes          8
+  simul. recomputes   4
+
+90s 8500 samples:
+  earlies             8
+  hits                8492
+  recomputes          8
+  simul. recomputes   4
+
+* early recompute! delta:0.5008 ttl:2 rnd:0.0049 logrnd:-5.3131 xfetch:-2.6607 now:1496199177 expiry:1496199179
+* early recompute! delta:0.5008 ttl:2 rnd:0.0180 logrnd:-4.0180 xfetch:-2.0121 now:1496199177 expiry:1496199179
+100s 9441 samples:
+  earlies             10
+  hits                9431
+  recomputes          10
+  simul. recomputes   5
+
+110s 10381 samples:
+  earlies             10
+  hits                10371
+  recomputes          10
+  simul. recomputes   5
+
+* early recompute! delta:0.5009 ttl:2 rnd:0.0072 logrnd:-4.9355 xfetch:-2.4724 now:1496199195 expiry:1496199197
+* early recompute! delta:0.5009 ttl:2 rnd:0.0069 logrnd:-4.9800 xfetch:-2.4947 now:1496199196 expiry:1496199198
+120s 11336 samples:
+  earlies             12
+  hits                11324
+  recomputes          12
+  simul. recomputes   6
+
+* early recompute! delta:0.5012 ttl:3 rnd:0.0013 logrnd:-6.6180 xfetch:-3.3173 now:1496199213 expiry:1496199216
+130s 12275 samples:
+  earlies             13
+  hits                12262
+  recomputes          13
+  simul. recomputes   6
+
+140s 13244 samples:
+  earlies             13
+  hits                13231
+  recomputes          13
+  simul. recomputes   6
+
+* early recompute! delta:0.5009 ttl:2 rnd:0.0157 logrnd:-4.1540 xfetch:-2.0806 now:1496199232 expiry:1496199234
+* early recompute! delta:0.5009 ttl:2 rnd:0.0038 logrnd:-5.5859 xfetch:-2.7978 now:1496199232 expiry:1496199234
+150s 14214 samples:
+  earlies             15
+  hits                14199
+  recomputes          15
+  simul. recomputes   7
+
+160s 15184 samples:
+  earlies             15
+  hits                15169
+  recomputes          15
+  simul. recomputes   7
+
+* early recompute! delta:0.5008 ttl:4 rnd:0.0002 logrnd:-8.6392 xfetch:-4.3261 now:1496199248 expiry:1496199252
+170s 16152 samples:
+  earlies             16
+  hits                16136
+  recomputes          16
+  simul. recomputes   7
+
+180s 17108 samples:
+  earlies             16
+  hits                17092
+  recomputes          16
+  simul. recomputes   7
+
+* early recompute! delta:0.5006 ttl:2 rnd:0.0045 logrnd:-5.4054 xfetch:-2.7061 now:1496199266 expiry:1496199268
+190s 18057 samples:
+  earlies             17
+  hits                18040
+  recomputes          17
+  simul. recomputes   7
+
+200s 19052 samples:
+  earlies             17
+  hits                19035
+  recomputes          17
+  simul. recomputes   7
+
+* early recompute! delta:0.5001 ttl:2 rnd:0.0153 logrnd:-4.1809 xfetch:-2.0910 now:1496199285 expiry:1496199287
+* early recompute! delta:0.5001 ttl:2 rnd:0.0119 logrnd:-4.4285 xfetch:-2.2148 now:1496199285 expiry:1496199287
+210s 20006 samples:
+  earlies             19
+  hits                19987
+  recomputes          19
+  simul. recomputes   8
+
+* early recompute! delta:0.5011 ttl:2 rnd:0.0047 logrnd:-5.3602 xfetch:-2.6859 now:1496199303 expiry:1496199305
+* early recompute! delta:0.5011 ttl:2 rnd:0.0080 logrnd:-4.8305 xfetch:-2.4205 now:1496199303 expiry:1496199305
+220s 20955 samples:
+  earlies             21
+  hits                20934
+  recomputes          21
+  simul. recomputes   9
+
+230s 21919 samples:
+  earlies             21
+  hits                21898
+  recomputes          21
+  simul. recomputes   9
+
+* early recompute! delta:0.5014 ttl:2 rnd:0.0117 logrnd:-4.4443 xfetch:-2.2282 now:1496199322 expiry:1496199324
+* early recompute! delta:0.5014 ttl:2 rnd:0.0032 logrnd:-5.7302 xfetch:-2.8729 now:1496199322 expiry:1496199324
+* early recompute! delta:0.5014 ttl:1 rnd:0.1211 logrnd:-2.1108 xfetch:-1.0583 now:1496199322 expiry:1496199323
+240s 22859 samples:
+  earlies             24
+  hits                22835
+  recomputes          24
+  simul. recomputes   11
+
+250s 23827 samples:
+  earlies             24
+  hits                23803
+  recomputes          24
+  simul. recomputes   11
+
+* early recompute! delta:0.5026 ttl:2 rnd:0.0162 logrnd:-4.1235 xfetch:-2.0723 now:1496199341 expiry:1496199343
+260s 24802 samples:
+  earlies             25
+  hits                24777
+  recomputes          25
+  simul. recomputes   11
+
+270s 25748 samples:
+  earlies             25
+  hits                25723
+  recomputes          25
+  simul. recomputes   11
+
+* early recompute! delta:0.5011 ttl:1 rnd:0.0248 logrnd:-3.6954 xfetch:-1.8516 now:1496199360 expiry:1496199361
+* early recompute! delta:0.5011 ttl:1 rnd:0.0689 logrnd:-2.6752 xfetch:-1.3404 now:1496199360 expiry:1496199361
+* early recompute! delta:0.5011 ttl:1 rnd:0.0212 logrnd:-3.8552 xfetch:-1.9316 now:1496199360 expiry:1496199361
+* early recompute! delta:0.5011 ttl:1 rnd:0.1287 logrnd:-2.0505 xfetch:-1.0274 now:1496199360 expiry:1496199361
+280s 26693 samples:
+  earlies             29
+  hits                26664
+  recomputes          29
+  simul. recomputes   14
+
+290s 27658 samples:
+  earlies             29
+  hits                27629
+  recomputes          29
+  simul. recomputes   14
+
+* early recompute! delta:0.5081 ttl:3 rnd:0.0005 logrnd:-7.6764 xfetch:-3.9006 now:1496199378 expiry:1496199381
+* early recompute! delta:0.5081 ttl:2 rnd:0.0030 logrnd:-5.8079 xfetch:-2.9512 now:1496199378 expiry:1496199380
+300s 28624 samples:
+  earlies             31
+  hits                28593
+  recomputes          31
+  simul. recomputes   15
+
+310s 29576 samples:
+  earlies             31
+  hits                29545
+  recomputes          31
+  simul. recomputes   15
+
+* early recompute! delta:0.5004 ttl:2 rnd:0.0180 logrnd:-4.0176 xfetch:-2.0104 now:1496199396 expiry:1496199398
+* early recompute! delta:0.5004 ttl:2 rnd:0.0033 logrnd:-5.7209 xfetch:-2.8627 now:1496199397 expiry:1496199399
+* early recompute! delta:0.5004 ttl:2 rnd:0.0123 logrnd:-4.4008 xfetch:-2.2021 now:1496199397 expiry:1496199399
+320s 30528 samples:
+  earlies             34
+  hits                30494
+  recomputes          34
+  simul. recomputes   17
+
+330s 31485 samples:
+  earlies             34
+  hits                31451
+  recomputes          34
+  simul. recomputes   17
+
+* early recompute! delta:0.5004 ttl:2 rnd:0.0179 logrnd:-4.0239 xfetch:-2.0137 now:1496199415 expiry:1496199417
+* early recompute! delta:0.5004 ttl:2 rnd:0.0065 logrnd:-5.0350 xfetch:-2.5197 now:1496199415 expiry:1496199417
+340s 32444 samples:
+  earlies             36
+  hits                32408
+  recomputes          36
+  simul. recomputes   18
+
+* early recompute! delta:0.5027 ttl:3 rnd:0.0007 logrnd:-7.3249 xfetch:-3.6822 now:1496199433 expiry:1496199436
+* early recompute! delta:0.5027 ttl:3 rnd:0.0004 logrnd:-7.8240 xfetch:-3.9331 now:1496199433 expiry:1496199436
+350s 33404 samples:
+  earlies             38
+  hits                33366
+  recomputes          38
+  simul. recomputes   19
+
+360s 34341 samples:
+  earlies             38
+  hits                34303
+  recomputes          38
+  simul. recomputes   19
+
+* early recompute! delta:0.5004 ttl:3 rnd:0.0023 logrnd:-6.0768 xfetch:-3.0407 now:1496199450 expiry:1496199453
+370s 35299 samples:
+  earlies             39
+  hits                35260
+  recomputes          39
+  simul. recomputes   19
+
+380s 36246 samples:
+  earlies             39
+  hits                36207
+  recomputes          39
+  simul. recomputes   19
+
+* early recompute! delta:0.5004 ttl:3 rnd:0.0020 logrnd:-6.2370 xfetch:-3.1209 now:1496199468 expiry:1496199471
+390s 37219 samples:
+  earlies             40
+  hits                37179
+  recomputes          40
+  simul. recomputes   19
+
+400s 38200 samples:
+  earlies             40
+  hits                38160
+  recomputes          40
+  simul. recomputes   19
+
+* early recompute! delta:0.5008 ttl:2 rnd:0.0145 logrnd:-4.2303 xfetch:-2.1184 now:1496199486 expiry:1496199488
+* early recompute! delta:0.5008 ttl:2 rnd:0.0071 logrnd:-4.9444 xfetch:-2.4760 now:1496199486 expiry:1496199488
+410s 39158 samples:
+  earlies             42
+  hits                39116
+  recomputes          42
+  simul. recomputes   20
+
+420s 40116 samples:
+  earlies             42
+  hits                40074
+  recomputes          42
+  simul. recomputes   20
+
+* early recompute! delta:0.5010 ttl:2 rnd:0.0103 logrnd:-4.5708 xfetch:-2.2898 now:1496199505 expiry:1496199507
+* early recompute! delta:0.5010 ttl:1 rnd:0.0449 logrnd:-3.1030 xfetch:-1.5545 now:1496199505 expiry:1496199506
+* early recompute! delta:0.5010 ttl:1 rnd:0.1012 logrnd:-2.2902 xfetch:-1.1473 now:1496199505 expiry:1496199506
+* early recompute! delta:0.5010 ttl:1 rnd:0.0993 logrnd:-2.3095 xfetch:-1.1570 now:1496199506 expiry:1496199507
+430s 41075 samples:
+  earlies             46
+  hits                41029
+  recomputes          46
+  simul. recomputes   23
+
+440s 42016 samples:
+  earlies             46
+  hits                41970
+  recomputes          46
+  simul. recomputes   23
+
+* early recompute! delta:0.5011 ttl:1 rnd:0.0012 logrnd:-6.7617 xfetch:-3.3882 now:1496199525 expiry:1496199526
+* early recompute! delta:0.5011 ttl:1 rnd:0.0745 logrnd:-2.5971 xfetch:-1.3014 now:1496199525 expiry:1496199526
+* early recompute! delta:0.5011 ttl:1 rnd:0.0227 logrnd:-3.7872 xfetch:-1.8977 now:1496199525 expiry:1496199526
+* early recompute! delta:0.5011 ttl:1 rnd:0.0758 logrnd:-2.5798 xfetch:-1.2927 now:1496199525 expiry:1496199526
+* early recompute! delta:0.5011 ttl:1 rnd:0.0461 logrnd:-3.0774 xfetch:-1.5421 now:1496199525 expiry:1496199526
+* early recompute! delta:0.5011 ttl:1 rnd:0.1056 logrnd:-2.2478 xfetch:-1.1263 now:1496199525 expiry:1496199526
+Halting...
+450s 42944 samples:
+  earlies             52
+  hits                42892
+  recomputes          52
+  simul. recomputes   28
+

@@ -1,0 +1,170 @@
+stampede.php: 50 concurrent workers, 20s cache expiration, 500ms recompute time
+10s 843 samples:
+  hits                843
+
+20s 1789 samples:
+  hits                1789
+
+30s 2696 samples:
+  hits                2661
+  misses              35
+  recomputes          35
+  simul. recomputes   34
+
+40s 3698 samples:
+  hits                3663
+  misses              35
+  recomputes          35
+  simul. recomputes   34
+
+50s 4617 samples:
+  hits                4545
+  misses              72
+  recomputes          72
+  simul. recomputes   70
+
+60s 5567 samples:
+  hits                5495
+  misses              72
+  recomputes          72
+  simul. recomputes   70
+
+70s 6494 samples:
+  hits                6380
+  misses              114
+  recomputes          114
+  simul. recomputes   111
+
+80s 7491 samples:
+  hits                7377
+  misses              114
+  recomputes          114
+  simul. recomputes   111
+
+90s 8411 samples:
+  hits                8258
+  misses              153
+  recomputes          153
+  simul. recomputes   149
+
+100s 9353 samples:
+  hits                9200
+  misses              153
+  recomputes          153
+  simul. recomputes   149
+
+110s 10291 samples:
+  hits                10095
+  misses              196
+  recomputes          196
+  simul. recomputes   191
+
+120s 11264 samples:
+  hits                11068
+  misses              196
+  recomputes          196
+  simul. recomputes   191
+
+130s 12189 samples:
+  hits                11955
+  misses              234
+  recomputes          234
+  simul. recomputes   228
+
+140s 13159 samples:
+  hits                12925
+  misses              234
+  recomputes          234
+  simul. recomputes   228
+
+150s 14072 samples:
+  hits                13803
+  misses              269
+  recomputes          269
+  simul. recomputes   262
+
+160s 15004 samples:
+  hits                14735
+  misses              269
+  recomputes          269
+  simul. recomputes   262
+
+170s 15932 samples:
+  hits                15623
+  misses              309
+  recomputes          309
+  simul. recomputes   301
+
+180s 16878 samples:
+  hits                16569
+  misses              309
+  recomputes          309
+  simul. recomputes   301
+
+190s 17810 samples:
+  hits                17475
+  misses              335
+  recomputes          335
+  simul. recomputes   326
+
+200s 18798 samples:
+  hits                18453
+  misses              345
+  recomputes          345
+  simul. recomputes   336
+
+210s 19742 samples:
+  hits                19397
+  misses              345
+  recomputes          345
+  simul. recomputes   336
+
+220s 20652 samples:
+  hits                20276
+  misses              376
+  recomputes          376
+  simul. recomputes   366
+
+230s 21610 samples:
+  hits                21234
+  misses              376
+  recomputes          376
+  simul. recomputes   366
+
+240s 22535 samples:
+  hits                22126
+  misses              409
+  recomputes          409
+  simul. recomputes   398
+
+250s 23523 samples:
+  hits                23114
+  misses              409
+  recomputes          409
+  simul. recomputes   398
+
+260s 24442 samples:
+  hits                23996
+  misses              446
+  recomputes          446
+  simul. recomputes   434
+
+270s 25384 samples:
+  hits                24938
+  misses              446
+  recomputes          446
+  simul. recomputes   434
+
+280s 26299 samples:
+  hits                25815
+  misses              484
+  recomputes          484
+  simul. recomputes   471
+
+Halting...
+290s 27179 samples:
+  hits                26695
+  misses              484
+  recomputes          484
+  simul. recomputes   471
+

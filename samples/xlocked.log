@@ -1,0 +1,275 @@
+stampede.php: 50 concurrent workers, 20s cache expiration, 500ms recompute time, XFetch beta: 1.00
+10s 837 samples:
+  hits                837
+
+* early recompute! delta:0.5007 ttl:2 rnd:0.0074 logrnd:-4.9062 xfetch:-2.4567 now:1496199564 expiry:1496199566
+* early recompute! delta:0.5007 ttl:2 rnd:0.0128 logrnd:-4.3560 xfetch:-2.1811 now:1496199564 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.1114 logrnd:-2.1944 xfetch:-1.0988 now:1496199565 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.0111 logrnd:-4.4973 xfetch:-2.2519 now:1496199565 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.1070 logrnd:-2.2353 xfetch:-1.1193 now:1496199565 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.0066 logrnd:-5.0186 xfetch:-2.5129 now:1496199565 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.0295 logrnd:-3.5227 xfetch:-1.7639 now:1496199565 expiry:1496199566
+* early recompute! delta:0.5007 ttl:1 rnd:0.0122 logrnd:-4.4032 xfetch:-2.2048 now:1496199565 expiry:1496199566
+20s 1794 samples:
+  ducked-out          7
+  earlies             8
+  hits                1786
+  lock contention     7
+  recomputes          1
+
+30s 2767 samples:
+  ducked-out          7
+  earlies             8
+  hits                2759
+  lock contention     7
+  recomputes          1
+
+* early recompute! delta:0.5005 ttl:3 rnd:0.0015 logrnd:-6.5323 xfetch:-3.2693 now:1496199581 expiry:1496199584
+40s 3736 samples:
+  ducked-out          7
+  earlies             9
+  hits                3727
+  lock contention     7
+  recomputes          2
+
+50s 4711 samples:
+  ducked-out          7
+  earlies             9
+  hits                4702
+  lock contention     7
+  recomputes          2
+
+* early recompute! delta:0.5001 ttl:4 rnd:0.0001 logrnd:-8.8664 xfetch:-4.4338 now:1496199598 expiry:1496199602
+60s 5662 samples:
+  ducked-out          7
+  earlies             10
+  hits                5652
+  lock contention     7
+  recomputes          3
+
+70s 6609 samples:
+  ducked-out          7
+  earlies             10
+  hits                6599
+  lock contention     7
+  recomputes          3
+
+* early recompute! delta:0.5028 ttl:2 rnd:0.0000 logrnd:-9.9991 xfetch:-5.0275 now:1496199616 expiry:1496199618
+80s 7567 samples:
+  ducked-out          7
+  earlies             11
+  hits                7556
+  lock contention     7
+  recomputes          4
+
+* early recompute! delta:0.5010 ttl:2 rnd:0.0152 logrnd:-4.1835 xfetch:-2.0961 now:1496199634 expiry:1496199636
+* early recompute! delta:0.5010 ttl:2 rnd:0.0005 logrnd:-7.5926 xfetch:-3.8042 now:1496199634 expiry:1496199636
+90s 8521 samples:
+  ducked-out          8
+  earlies             13
+  hits                8508
+  lock contention     8
+  recomputes          5
+
+100s 9485 samples:
+  ducked-out          8
+  earlies             13
+  hits                9472
+  lock contention     8
+  recomputes          5
+
+* early recompute! delta:0.5055 ttl:2 rnd:0.0033 logrnd:-5.7222 xfetch:-2.8923 now:1496199652 expiry:1496199654
+110s 10445 samples:
+  ducked-out          8
+  earlies             14
+  hits                10431
+  lock contention     8
+  recomputes          6
+
+120s 11372 samples:
+  ducked-out          8
+  earlies             14
+  hits                11358
+  lock contention     8
+  recomputes          6
+
+* early recompute! delta:0.5011 ttl:3 rnd:0.0020 logrnd:-6.2128 xfetch:-3.1131 now:1496199669 expiry:1496199672
+130s 12313 samples:
+  ducked-out          8
+  earlies             15
+  hits                12298
+  lock contention     8
+  recomputes          7
+
+140s 13273 samples:
+  ducked-out          8
+  earlies             15
+  hits                13258
+  lock contention     8
+  recomputes          7
+
+* early recompute! delta:0.5019 ttl:3 rnd:0.0005 logrnd:-7.5101 xfetch:-3.7692 now:1496199687 expiry:1496199690
+150s 14231 samples:
+  ducked-out          8
+  earlies             16
+  hits                14215
+  lock contention     8
+  recomputes          8
+
+160s 15195 samples:
+  ducked-out          8
+  earlies             16
+  hits                15179
+  lock contention     8
+  recomputes          8
+
+* early recompute! delta:0.5009 ttl:1 rnd:0.1336 logrnd:-2.0125 xfetch:-1.0081 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.0251 logrnd:-3.6855 xfetch:-1.8460 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.1191 logrnd:-2.1282 xfetch:-1.0660 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.1068 logrnd:-2.2370 xfetch:-1.1205 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.0961 logrnd:-2.3428 xfetch:-1.1735 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.1178 logrnd:-2.1385 xfetch:-1.0711 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.0130 logrnd:-4.3449 xfetch:-2.1763 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.0201 logrnd:-3.9063 xfetch:-1.9566 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.1048 logrnd:-2.2555 xfetch:-1.1298 now:1496199706 expiry:1496199707
+* early recompute! delta:0.5009 ttl:1 rnd:0.0917 logrnd:-2.3898 xfetch:-1.1970 now:1496199706 expiry:1496199707
+170s 16141 samples:
+  ducked-out          17
+  earlies             26
+  hits                16115
+  lock contention     17
+  recomputes          9
+
+* early recompute! delta:0.5011 ttl:2 rnd:0.0108 logrnd:-4.5307 xfetch:-2.2702 now:1496199724 expiry:1496199726
+* early recompute! delta:0.5011 ttl:1 rnd:0.1133 logrnd:-2.1780 xfetch:-1.0913 now:1496199725 expiry:1496199726
+* early recompute! delta:0.5011 ttl:1 rnd:0.0134 logrnd:-4.3132 xfetch:-2.1612 now:1496199725 expiry:1496199726
+* early recompute! delta:0.5011 ttl:1 rnd:0.0407 logrnd:-3.2014 xfetch:-1.6041 now:1496199725 expiry:1496199726
+180s 17071 samples:
+  ducked-out          20
+  earlies             30
+  hits                17041
+  lock contention     20
+  recomputes          10
+
+190s 18001 samples:
+  ducked-out          20
+  earlies             30
+  hits                17971
+  lock contention     20
+  recomputes          10
+
+* early recompute! delta:0.5010 ttl:2 rnd:0.0160 logrnd:-4.1352 xfetch:-2.0719 now:1496199743 expiry:1496199745
+* early recompute! delta:0.5010 ttl:2 rnd:0.0053 logrnd:-5.2448 xfetch:-2.6279 now:1496199743 expiry:1496199745
+200s 18944 samples:
+  ducked-out          21
+  earlies             32
+  hits                18912
+  lock contention     21
+  recomputes          11
+
+210s 19898 samples:
+  ducked-out          21
+  earlies             32
+  hits                19866
+  lock contention     21
+  recomputes          11
+
+* early recompute! delta:0.5002 ttl:2 rnd:0.0138 logrnd:-4.2824 xfetch:-2.1420 now:1496199761 expiry:1496199763
+220s 20876 samples:
+  ducked-out          21
+  earlies             33
+  hits                20843
+  lock contention     21
+  recomputes          12
+
+230s 21823 samples:
+  ducked-out          21
+  earlies             33
+  hits                21790
+  lock contention     21
+  recomputes          12
+
+* early recompute! delta:0.5001 ttl:1 rnd:0.0516 logrnd:-2.9642 xfetch:-1.4824 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.0607 logrnd:-2.8020 xfetch:-1.4013 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.0294 logrnd:-3.5259 xfetch:-1.7633 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.0732 logrnd:-2.6149 xfetch:-1.3077 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.0317 logrnd:-3.4513 xfetch:-1.7260 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.1041 logrnd:-2.2628 xfetch:-1.1316 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.1191 logrnd:-2.1280 xfetch:-1.0642 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.0530 logrnd:-2.9373 xfetch:-1.4690 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.1292 logrnd:-2.0466 xfetch:-1.0235 now:1496199780 expiry:1496199781
+* early recompute! delta:0.5001 ttl:1 rnd:0.1223 logrnd:-2.1012 xfetch:-1.0508 now:1496199780 expiry:1496199781
+240s 22762 samples:
+  ducked-out          30
+  earlies             43
+  hits                22719
+  lock contention     30
+  recomputes          13
+
+250s 23722 samples:
+  ducked-out          30
+  earlies             43
+  hits                23679
+  lock contention     30
+  recomputes          13
+
+* early recompute! delta:0.5001 ttl:1 rnd:0.1136 logrnd:-2.1747 xfetch:-1.0876 now:1496199799 expiry:1496199800
+* early recompute! delta:0.5001 ttl:1 rnd:0.0655 logrnd:-2.7250 xfetch:-1.3629 now:1496199799 expiry:1496199800
+* early recompute! delta:0.5001 ttl:1 rnd:0.0893 logrnd:-2.4161 xfetch:-1.2084 now:1496199799 expiry:1496199800
+* early recompute! delta:0.5001 ttl:1 rnd:0.1153 logrnd:-2.1599 xfetch:-1.0803 now:1496199799 expiry:1496199800
+260s 24663 samples:
+  ducked-out          33
+  earlies             47
+  hits                24616
+  lock contention     33
+  recomputes          14
+
+270s 25635 samples:
+  ducked-out          33
+  earlies             47
+  hits                25588
+  lock contention     33
+  recomputes          14
+
+* early recompute! delta:0.5004 ttl:2 rnd:0.0027 logrnd:-5.9247 xfetch:-2.9650 now:1496199817 expiry:1496199819
+* early recompute! delta:0.5004 ttl:2 rnd:0.0184 logrnd:-3.9979 xfetch:-2.0007 now:1496199817 expiry:1496199819
+* early recompute! delta:0.5004 ttl:2 rnd:0.0016 logrnd:-6.4321 xfetch:-3.2189 now:1496199818 expiry:1496199820
+280s 26608 samples:
+  ducked-out          35
+  earlies             50
+  hits                26558
+  lock contention     35
+  recomputes          15
+
+* early recompute! delta:0.5006 ttl:3 rnd:0.0009 logrnd:-7.0624 xfetch:-3.5357 now:1496199835 expiry:1496199838
+290s 27521 samples:
+  ducked-out          35
+  earlies             51
+  hits                27470
+  lock contention     35
+  recomputes          16
+
+300s 28481 samples:
+  ducked-out          35
+  earlies             51
+  hits                28430
+  lock contention     35
+  recomputes          16
+
+* early recompute! delta:0.5012 ttl:2 rnd:0.0162 logrnd:-4.1205 xfetch:-2.0652 now:1496199853 expiry:1496199855
+* early recompute! delta:0.5012 ttl:2 rnd:0.0000 logrnd:-11.3932 xfetch:-5.7103 now:1496199853 expiry:1496199855
+310s 29419 samples:
+  ducked-out          36
+  earlies             53
+  hits                29366
+  lock contention     36
+  recomputes          17
+
+Halting...
+317s 30025 samples:
+  ducked-out          36
+  earlies             53
+  hits                29972
+  lock contention     36
+  recomputes          17
+

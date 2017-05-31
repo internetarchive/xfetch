@@ -1,0 +1,204 @@
+stampede.php: 50 concurrent workers, 20s cache expiration, 500ms recompute time
+10s 860 samples:
+  hits                860
+
+20s 1826 samples:
+  hits                1826
+
+30s 2779 samples:
+  hits                2738
+  lock contention     40
+  misses              41
+  recomputes          1
+  retries             40
+
+40s 3747 samples:
+  hits                3706
+  lock contention     40
+  misses              41
+  recomputes          1
+  retries             40
+
+50s 4703 samples:
+  hits                4625
+  lock contention     76
+  misses              78
+  recomputes          2
+  retries             76
+
+60s 5698 samples:
+  hits                5620
+  lock contention     76
+  misses              78
+  recomputes          2
+  retries             76
+
+70s 6610 samples:
+  hits                6495
+  lock contention     112
+  misses              115
+  recomputes          3
+  retries             112
+
+80s 7540 samples:
+  hits                7425
+  lock contention     112
+  misses              115
+  recomputes          3
+  retries             112
+
+90s 8488 samples:
+  hits                8341
+  lock contention     143
+  misses              147
+  recomputes          4
+  retries             143
+
+100s 9437 samples:
+  hits                9290
+  lock contention     143
+  misses              147
+  recomputes          4
+  retries             143
+
+110s 10357 samples:
+  hits                10173
+  lock contention     179
+  misses              184
+  recomputes          5
+  retries             179
+
+120s 11283 samples:
+  hits                11099
+  lock contention     179
+  misses              184
+  recomputes          5
+  retries             179
+
+130s 12230 samples:
+  hits                12005
+  lock contention     219
+  misses              225
+  recomputes          6
+  retries             219
+
+140s 13155 samples:
+  hits                12930
+  lock contention     219
+  misses              225
+  recomputes          6
+  retries             219
+
+150s 14107 samples:
+  hits                13842
+  lock contention     258
+  misses              265
+  recomputes          7
+  retries             258
+
+160s 15076 samples:
+  hits                14811
+  lock contention     258
+  misses              265
+  recomputes          7
+  retries             258
+
+170s 16004 samples:
+  hits                15701
+  lock contention     295
+  misses              303
+  recomputes          8
+  retries             295
+
+180s 16961 samples:
+  hits                16658
+  lock contention     295
+  misses              303
+  recomputes          8
+  retries             295
+
+190s 17872 samples:
+  hits                17533
+  lock contention     330
+  misses              339
+  recomputes          9
+  retries             330
+
+200s 18838 samples:
+  hits                18499
+  lock contention     330
+  misses              339
+  recomputes          9
+  retries             330
+
+210s 19773 samples:
+  hits                19396
+  lock contention     367
+  misses              377
+  recomputes          10
+  retries             367
+
+220s 20749 samples:
+  hits                20372
+  lock contention     367
+  misses              377
+  recomputes          10
+  retries             367
+
+230s 21692 samples:
+  hits                21279
+  lock contention     402
+  misses              413
+  recomputes          11
+  retries             402
+
+240s 22646 samples:
+  hits                22233
+  lock contention     402
+  misses              413
+  recomputes          11
+  retries             402
+
+250s 23590 samples:
+  hits                23136
+  lock contention     442
+  misses              454
+  recomputes          12
+  retries             442
+
+260s 24584 samples:
+  hits                24130
+  lock contention     442
+  misses              454
+  recomputes          12
+  retries             442
+
+270s 25504 samples:
+  hits                25017
+  lock contention     474
+  misses              487
+  recomputes          13
+  retries             474
+
+280s 26451 samples:
+  hits                25964
+  lock contention     474
+  misses              487
+  recomputes          13
+  retries             474
+
+290s 27381 samples:
+  hits                26862
+  lock contention     505
+  misses              519
+  recomputes          14
+  retries             505
+
+Halting...
+294s 27765 samples:
+  hits                27246
+  lock contention     505
+  misses              519
+  recomputes          14
+  retries             505
+

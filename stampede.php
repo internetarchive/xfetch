@@ -115,7 +115,7 @@ function main($argv)
   printf("%s: %d concurrent workers, %ds cache expiration, %dms recompute time",
     basename($argv[0]), WORKERS, EXPIRES, DELTA);
   if ($strategy == 'xfetch' || $strategy == 'xlocked')
-    printf(" (XFetch beta: %.03lf)", BETA);
+    printf(", XFetch beta: %.02lf", BETA);
   echo "\n";
 
   $harness = new Harness($strategies[$strategy][0]);
@@ -611,20 +611,24 @@ class XFetchWorker extends ChildWorker
    * The XFetch algorithm.
    *
    * @param float $delta  Recompute time (in seconds)
-   * @param float $ttl    Cache value's time-to-live (in seconds)
+   * @param int $ttl      Cache value's time-to-live (in seconds)
    * @return boolean      TRUE if caller should recompute
    */
   public static function xfetch($delta, $ttl)
   {
     $now = time();
     $expiry = $now + $ttl;
-    $rnd = log(mt_rand() / mt_getrandmax());
+    // log(0) is -INF
+    $rnd = mt_rand(1, mt_getrandmax()) / mt_getrandmax();
+    $logrnd = log($rnd);
 
-    $xfetch = $delta * BETA * $rnd;
+    $xfetch = $delta * BETA * $logrnd;
 
     $recompute = ($now - $xfetch) >= $expiry;
-    if ($recompute)
-      echo "* early recompute! delta:$delta ttl:$ttl rnd:$rnd xfetch:$xfetch\n";
+    if ($recompute) {
+      printf("* early recompute! delta:%.04f ttl:%d rnd:%.04f logrnd:%.04f xfetch:%.04f now:%d expiry:%d\n",
+        $delta, $ttl, $rnd, $logrnd, $xfetch, $now, $expiry);
+    }
 
     return $recompute;
   }

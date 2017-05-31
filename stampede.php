@@ -46,12 +46,12 @@ $redis_options = [];
  * Harness parameters (parent process).
  */
 define('WORKERS', 50);          // number of concurrent child processes
-define('REPORT_EVERY_SEC', 5);  // how often to print stats to stdout
+define('REPORT_EVERY_SEC', 10); // how often to print stats to stdout
 
 /**
  * Worker parameters (child process).
  */
-define('EXPIRES', 12);          // expiration time of cached value (in seconds)
+define('EXPIRES', 20);          // expiration time of cached value (in seconds)
 define('BETA', 1.0);            // XFetch beta value (default: 1.0, > 1.0 favors earlier recomputation,
                                 // < 1.0 favors later)
 define('DELTA', 500);           // time to recompute the value to be cached (in milliseconds)
@@ -300,7 +300,7 @@ class Harness
       case PROCERR:
       case UNKNOWN:
       default:
-        $this->incr_tally("exit $exitcode");
+        $this->incr_tally("exit {$worker->exitcode}");
       break;
     }
 

@@ -24,6 +24,8 @@ _*Use ONLY on a test server.  Do NOT use stampede.php on a production Redis serv
 
 ## Before running
 
+Note: Only one instance of stampede.php may execute against a Redis instance at a time.  If you run multiple instances on the same Redis, you will see invalid statistics and other problems.
+
 ### Requirements
 
 stampede.php requires:

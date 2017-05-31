@@ -62,10 +62,10 @@ define('DELTA', 500);           // time to recompute the value to be cached (in 
  * WARNING: These are deleted at the start of each run and ruthlessly overwritten throughout
  * execution.
  */
-define('REDIS_KEY', 'test:cache');
-define('LOCK_KEY',  'test:lock');
-define('DELTA_KEY', 'test:delta');
-define('SIMUL_KEY', 'test:simul-recomputes');
+define('REDIS_KEY', 'stampede:cache');
+define('LOCK_KEY',  'stampede:lock');
+define('DELTA_KEY', 'stampede:delta');
+define('SIMUL_KEY', 'stampede:simul-recomputes');
 
 /**
  * Child process exit codes (indicating cache result).
@@ -111,6 +111,12 @@ function main($argv)
   $strategy = $argv[1];
   if (!isset($strategies[$strategy]))
     return usage($argv);
+
+  printf("%s: %d concurrent workers, %ds cache expiration, %dms recompute time",
+    basename($argv[0]), WORKERS, EXPIRES, DELTA);
+  if ($strategy == 'xfetch' || $strategy == 'xlocked')
+    printf(" (XFetch beta: %.03lf)", BETA);
+  echo "\n";
 
   $harness = new Harness($strategies[$strategy][0]);
 
@@ -168,7 +174,8 @@ class Harness
   private $total = 0;
   private $tally = [];
 
-  // next time_t to report gathered stats
+  // start time and next time_t to report gathered stats
+  private $start_time_t;
   private $report_time_t;
 
   private $halt = false;
@@ -187,6 +194,8 @@ class Harness
    */
   public function start()
   {
+    $this->start_time_t = time();
+
     // launch first pass of workers ... these workers' test results are not tallied (to warm the
     // cache)
     while (count($this->workers) < WORKERS)
@@ -251,9 +260,10 @@ class Harness
    */
   public function report_stats()
   {
+    $time_t = time() - $this->start_time_t;
     ksort($this->tally);
 
-    echo "{$this->total} samples:\n";
+    echo "{$time_t}s {$this->total} samples:\n";
     foreach ($this->tally as $label => $count) {
       $label = str_pad($label, 20);
       echo "  $label$count\n";

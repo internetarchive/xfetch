@@ -26,11 +26,24 @@ require '../predis/src/Autoloader.php';
 Predis\Autoloader::register();
 
 /**
+ * Update with Predis configuration for your Redis installation.
+ *
+ * Empty arrays indicate default parameters.  In particular, Predis will connect to a Redis server
+ * at 127.0.0.1:6379
+ *
+ * For more information see:
+ *   https://github.com/nrk/predis/wiki/Client-Options
+ *   https://github.com/nrk/predis/wiki/Connection-Parameters
+ */
+$redis_params = [];
+$redis_options = [];
+
+/**
  * Times in seconds.
  */
-define('TTL', 12);
-define('DELTA_MS', 500);
-define('LOCK_TTL', 10);
+define('EXPIRES', 12);
+define('DELTA', 500);
+define('LOCK_EXPIRES', 10);
 
 /**
  * Child process exit codes (indicating cache result).
@@ -82,7 +95,7 @@ exit(main($argv));
  */
 function main($argv)
 {
-  global $strategies;
+  global $strategies, $redis_params, $redis_options;
 
   if (count($argv) != 2)
     return usage($argv);
@@ -100,7 +113,7 @@ function main($argv)
   });
 
   // clear the cached values from Redis (to clear any cruft from prior runs)
-  $redis = new Predis\Client();
+  $redis = new Predis\Client($redis_params, $redis_options);
   $redis->del(REDIS_KEY, LOCK_KEY, DELTA_KEY, SIMUL_KEY);
 
   $harness->start();
@@ -189,7 +202,7 @@ class Harness
 
   private function add_worker($first_pass = false)
   {
-    $worker = new $this->worker_class(TTL);
+    $worker = new $this->worker_class(EXPIRES);
     $worker->first_pass = $first_pass;
     $pid = $worker->start();
 
@@ -303,7 +316,9 @@ abstract class ChildWorker
 
   public function __construct($expires)
   {
-    $this->redis = new Predis\Client();
+    global $redis_params, $redis_options;
+
+    $this->redis = new Predis\Client($redis_params, $redis_options);
     $this->expires = $expires;
   }
 
@@ -348,7 +363,7 @@ abstract class ChildWorker
    */
   protected function recompute_fn()
   {
-    usleep(DELTA_MS * 1000);
+    usleep(DELTA * 1000);
     $this->result |= RECOMP;
 
     return 'gnusto';
@@ -379,7 +394,7 @@ abstract class ChildWorker
 
   protected function lock_acquire()
   {
-    $acquired = $this->redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_TTL, 'NX');
+    $acquired = $this->redis->set(LOCK_KEY, 'acquired', 'EX', LOCK_EXPIRES, 'NX');
     if (!$acquired)
       $this->result |= CONTEND;
 

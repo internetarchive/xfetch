@@ -37,7 +37,7 @@ stampede.php requires:
 In an ideal world, stampede.php will work out-of-the-box.  Until such an ideal world snaps into existence, you will probably need to edit the following variables in stampede.php to run it on your test environment:
 
   * The initial `require` line should point to your Predis installation
-  * The `$REDIS_PARAMS` and `$REDIS_CONFIG` arrays are Predis' parameters and configuration options respectively.  By default Predis will connect to Redis at `127.0.0.1:6379`.  For more information see https://github.com/nrk/predis/wiki/Client-Options and https://github.com/nrk/predis/wiki/Connection-Parameters
+  * The `$redis_params` and `$redis_options` arrays are Predis' parameters and configuration options respectively.  By default Predis will connect to Redis at `127.0.0.1:6379`.  For more information see https://github.com/nrk/predis/wiki/Client-Options and https://github.com/nrk/predis/wiki/Connection-Parameters
 
 Other constants in the code may be tweaked to change the harness parameters and see how they affect the final results.  **Changing these should not be necessary to run stampede.php:**
 

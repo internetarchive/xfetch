@@ -161,7 +161,7 @@ RND_PRECISION may be adjusted to define the number of digits of precision for th
 
 RND_PRECISION limits the scale of the log() function.  Smaller rnd() yields larger log() results (which, again, act as a kind of multipler on DELTA).
 
-For example, log(0.1) = ~ -2.30 while log(0.000001) = ~ -13.82.  (Since XFetch is *added* to time(), the negative is treated as a positive value.)  Multiplying DELTA by 14 could cause wildly early recomputes.
+For example, log(0.1) = ~ -2.30 while log(0.000001) = ~ -13.82.  (Since XFetch is *subtracted* from time(), the negative is treated as a positive value.)  Multiplying DELTA by 14 could cause wildly early recomputes.
 
 This is why RND_PRECISION can be used to control XFetch; it curbs the scale of log(rnd()) and limits how early recomputes occur.
 

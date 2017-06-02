@@ -165,6 +165,13 @@ For example, log(0.1) = ~ -2.30 while log(0.000001) = ~ -13.82.  (Since XFetch i
 
 This is why RND_PRECISION can be used to control XFetch; it curbs the scale of log(rnd()) and limits how early recomputes occur.
 
+## Improvements
+
+  * Better statistic reporting would be welcome.  The ability to see events over time rather than in aggregate would be most useful.  One simple possibility would be to log results to a CSV file as they occur, which could then be loaded into a spreadsheet or other reporting tool.
+  * Child processes are created and destroyed without abandon.  It would probably be more efficient to reuse child processes, but that would require a more sophisticated result-reporting mechanism than the process exitcode.
+  * Timings and counts should be recorded, to allow performance analysis.
+  * The code should be broken out into separate code files (one per class).  An autoloader would be nice but not necessary.
+
 ## Conclusions
 
 locked and fetch are susceptible to cache stampede, congestion collapse, and starved workers.  They do not scale well.

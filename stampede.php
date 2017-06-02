@@ -113,8 +113,9 @@ function main($argv)
   if (!isset($strategies[$strategy]))
     return usage($argv);
 
-  printf("%s: %d concurrent workers, %ds cache expiration, %dms recompute time, %s digits of rnd() precision",
-    basename($argv[0]), WORKERS, EXPIRES, DELTA, (RND_PRECISION >= 1) ? strval(RND_PRECISION) : 'inf.');
+  printf("%s: %s\n", basename($argv[0]), $strategies[$strategy][1]);
+  printf("%d concurrent workers, %ds cache expiration, %dms recompute time, %s digits of rnd() precision",
+    WORKERS, EXPIRES, DELTA, (RND_PRECISION >= 1) ? strval(RND_PRECISION) : 'inf.');
   if ($strategy == 'xfetch' || $strategy == 'xlocked')
     printf(", XFetch beta: %.02lf", BETA);
   echo "\n";

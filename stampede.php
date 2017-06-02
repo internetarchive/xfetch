@@ -55,6 +55,7 @@ define('EXPIRES', 20);          // expiration time of cached value (in seconds)
 define('BETA', 1.0);            // XFetch beta value (default: 1.0, > 1.0 favors earlier recomputation,
                                 // < 1.0 favors later)
 define('DELTA', 500);           // time to recompute the value to be cached (in milliseconds)
+define('RND_PRECISION', 0);     // rnd()'s digits of precision (see README.md)
 
 /**
  * Redis keys.
@@ -82,7 +83,7 @@ define('RECOMP',  0x08);        // worker recomputed cache value
 define('RETRY',   0x10);        // worker paused to retry read / recomputation
 define('SIMUL',   0x20);        // simultaneous recompute detected
 define('CONTEND', 0x40);        // lock contention (failed to acquire lock)
-define('DUCKED',  0x80);        // "ducked out" (volunteer for early recompute failed to acquire
+define('DUCKED',  0x80);        // "ducked out" (a volunteer for early recompute failed to acquire
                                 // lock, so returned good value and called it a day)
 
 /**
@@ -112,8 +113,8 @@ function main($argv)
   if (!isset($strategies[$strategy]))
     return usage($argv);
 
-  printf("%s: %d concurrent workers, %ds cache expiration, %dms recompute time",
-    basename($argv[0]), WORKERS, EXPIRES, DELTA);
+  printf("%s: %d concurrent workers, %ds cache expiration, %dms recompute time, %s digits of rnd() precision",
+    basename($argv[0]), WORKERS, EXPIRES, DELTA, (RND_PRECISION >= 1) ? strval(RND_PRECISION) : 'inf.');
   if ($strategy == 'xfetch' || $strategy == 'xlocked')
     printf(", XFetch beta: %.02lf", BETA);
   echo "\n";
@@ -121,7 +122,7 @@ function main($argv)
   $harness = new Harness($strategies[$strategy][0]);
 
   // install signal handler to exit on Ctrl+C
-  pcntl_signal(SIGINT, function () use (&$harness) {
+  pcntl_signal(SIGINT, function () use ($harness) {
     echo "Halting...\n";
     $harness->halt();
   });
@@ -574,6 +575,8 @@ class XFetchWorker extends ChildWorker
    */
   protected function read()
   {
+    // stampede.php stores the cache and delta value in different keys, but there are other
+    // possibilities, such as using a Redis hash with multiple fields ('delta', 'value')
     $pipe = $this->redis->pipeline(['atomic' => true]);
     $pipe->ttl(REDIS_KEY);
     $pipe->get(REDIS_KEY);
@@ -601,6 +604,7 @@ class XFetchWorker extends ChildWorker
 
   protected function write($value, $delta)
   {
+    // see read() for a note on how data is stored in Redis
     $pipe = $this->redis->pipeline(['atomic' => true]);
     $pipe->setex(REDIS_KEY, $this->expires, $value);
     $pipe->setex(DELTA_KEY, $this->expires, $delta);
@@ -618,19 +622,31 @@ class XFetchWorker extends ChildWorker
   {
     $now = time();
     $expiry = $now + $ttl;
-    // log(0) is -INF
-    $rnd = mt_rand(1, mt_getrandmax()) / mt_getrandmax();
+    $rnd = static::rnd();
     $logrnd = log($rnd);
 
     $xfetch = $delta * BETA * $logrnd;
 
     $recompute = ($now - $xfetch) >= $expiry;
     if ($recompute) {
-      printf("* early recompute! delta:%.04f ttl:%d rnd:%.04f logrnd:%.04f xfetch:%.04f now:%d expiry:%d\n",
-        $delta, $ttl, $rnd, $logrnd, $xfetch, $now, $expiry);
+      printf("* early recompute! delta:%.04f ttl:%d rnd:%.06f logrnd:%.04f xfetch:%.04f\n",
+        $delta, $ttl, $rnd, $logrnd, $xfetch);
     }
 
     return $recompute;
+  }
+
+  /**
+   * Returns a random number between 0.0 and 1.0 with RND_PRECISION digits of precision.
+   *
+   * @return float
+   */
+  public static function rnd()
+  {
+    $max = (RND_PRECISION >= 1) ? pow(10, RND_PRECISION) : mt_getrandmax();
+
+    // log(0) is -INF
+    return mt_rand(1, $max) / $max;
   }
 }
 

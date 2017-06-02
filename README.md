@@ -45,10 +45,11 @@ Other constants in the code may be tweaked to change the harness parameters and 
 
   * EXPIRES: The expiration time (in seconds) of the cached value
   * DELTA: The amount of time it takes to recompute the cached value (in milliseconds)
-  * REDIS_KEY / LOCK_KEY / DELTA_KEY / SIMUL_KEY: Redis key names used by the harness to store information.
+  * REDIS_KEY / LOCK_KEY / DELTA_KEY / SIMUL_KEY: Redis key names used by the harness to store information
   * WORKERS: Number of simultaneous processes to keep running during the test
   * REPORT_EVERY_SEC: How often to print test data to stdout (in seconds)
   * BETA: The XFetch algorithm's beta value (see below)
+  * RND_PRECISION: Digits of precision for the randomly-generated value (see below)
 
 ## Running the harness
 
@@ -59,7 +60,7 @@ $ ./stampede
 $ php -f stampede.php
 ```
 
-Each cache strategy has a name, which is printed to stdout if no name is supplied.  Only one strategy may be tested at a time.  For example, to test the XFetch strategy:
+Each cache strategy has a name.  Only one strategy may be tested at a time.  For example, to test the XFetch strategy:
 
 ```
 $ ./stampede xfetch
@@ -83,7 +84,7 @@ If stampede.php is interrupted (i.e. Ctrl+C) it will halt the test and print the
 
 The parent process executes `Harness::start()`.  This event loop launches the child processes, gathers their results, and prints the aggregated data to stdout.
 
-Each cache strategy is implemented as a child class of abstract class `ChildWorker`, which defines an interface for `Harness` to use as well as several helper functions for the concrete classes to use.
+Each cache strategy is implemented as a child of abstract class `ChildWorker`.  It defines an interface for `Harness` to use as well as several helper functions for the concrete subclasses.
 
 ## Terminology
 
@@ -123,7 +124,7 @@ If locked is unable to acquire the Redis lock, it pauses (to give the other work
 
 locked solves the problem of congestion collapse but remains susceptible to workers starved waiting for the recompute to complete.
 
-xfetch's algorithm (see https://archive.org/details/xfetch) uses probabilistic early recomputation to avoid lock contention and congestion collapse.  The BETA constant (default: 1.0) may be used to tweak recomputation time (earlier or later).
+xfetch's algorithm (see https://archive.org/details/xfetch) uses probabilistic early recomputation to avoid lock contention and congestion collapse.
 
 xfetch reads the value from Redis.  Even if the value is present, the xfetch() function may signal the caller is to recompute the cache value.  (This is early probabilistic recomputation).
 
@@ -141,6 +142,28 @@ xlocked has the same mechanics as xfetch (above) with two changes:
 
   1. A lock is acquired before recomputing the value.
   2. If the lock is not acquired but the value was available in Redis, do not wait to recompute; simply return the value.  (This is called "ducking out" in the code.)
+
+## XFetch tweaks
+
+The XFetch algorithm is simple:
+
+```
+DELTA * BETA * log(rnd())
+```
+
+DELTA is the amount of time it takes to recompute the value.  stampede.php merely uses the last recompute time for this value.  Real-world scenarios where recompute times vary may suggest other strategies, such as using sampling to determine DELTA (i.e., calculate the mean of the past 'n' recomputes).  stampede.php has no provision for testing this.
+
+The BETA constant (default: 1.0) may be used to tweak recomputation time.  A value > 1.0 yields earlier recomputation, < 1.0 later recomputation.
+
+Think of BETA as a multiplier against DELTA; > 1.0 inflates DELTA, so XFetch will schedule a recompute later, while < 1.0 produces a fraction of DELTA.  Good ranges for BETA are 0.5 to 2.0.
+
+RND_PRECISION may be adjusted to define the number of digits of precision for the rnd() function.  For example, a RND_PRECISION of 1 means rnd() will return a value between 0.1 and 1.0.  RND_PRECISION of 3 yields a range of 0.001 to 1.000 (and so on).  Zero RND_PRECISION uses all precision available on the platform (the default, which I believe meets the intentions of the original XFetch authors).
+
+RND_PRECISION limits the scale of the log() function.  Smaller rnd() yields larger log() results (which, again, act as a kind of multipler on DELTA).
+
+For example, log(0.1) = ~ -2.30 while log(0.000001) = ~ -13.82.  (Since XFetch is *added* to time(), the negative is treated as a positive value.)  Multiplying DELTA by 14 could cause wildly early recomputes.
+
+This is why RND_PRECISION can be used to control XFetch; it curbs the scale of log(rnd()) and limits how early recomputes occur.
 
 ## Conclusions
 

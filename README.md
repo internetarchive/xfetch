@@ -181,3 +181,10 @@ xfetch is fine for most situations, as long as simultaneous recomputes are accep
 xlocked's results are the best of the four strategies in that it has zero cache misses and no simultaneous recomputes.
 
 The trade-offs: xfetch and xlocked require additional state be stored and are more complicated algorithms.
+
+## Other projects
+
+Some of the other Redis-related projects I've presented at RedisConf:
+
+* [Deferred](https://github.com/internetarchive/deferred): Promises and Futures for Predis / PHP
+* [Work Stealing](https://github.com/internetarchive/work-stealing): Use spare cycles to complete background work

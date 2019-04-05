@@ -1,6 +1,6 @@
 # Preventing cache stampede with Redis & XFetch
 
-  * Jim Nelson <jnelson@archive.org>
+  * Jim Nelson <<jnelson@archive.org>>
   * Internet Archive
   * RedisConf 2017
 
